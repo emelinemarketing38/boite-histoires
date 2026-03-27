@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Boîte à histoires</title>
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Histoires">
+<link rel="apple-touch-icon" href="icon-192.svg">
+<meta name="theme-color" content="#f39c12">
+<style>
+:root {
+  --primary: #f39c12;
+  --bg: #fef9ef;
+  --card-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  --radius: 20px;
+  --transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  --universe-color: #f39c12;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  background: var(--bg);
+  color: #333;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+body { position: relative; }
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  opacity: 0;
+  transform: translateX(60px);
+  pointer-events: none;
+  transition: opacity var(--transition), transform var(--transition);
+}
+
+.screen.active {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.screen.exit-left {
+  opacity: 0;
+  transform: translateX(-60px);
+  pointer-events: none;
+}
+
+/* ---- PROGRESS BAR ---- */
+.progress-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.progress-dot {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: #e0d6c8;
+  transition: background 0.3s;
+}
+
+.progress-dot.done { background: var(--universe-color, var(--primary)); }
+.progress-dot.current {
+  background: var(--universe-color, var(--primary));
+  animation: pulse-dot 1.2s infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ---- WELCOME ---- */
+#welcome {
+  justify-content: center;
+  text-align: center;
+  background: linear-gradient(160deg, #fef9ef 0%, #fdebd0 100%);
+}
+
+#welcome .logo { font-size: 80px; margin-bottom: 10px; animation: float 3s ease-in-out infinite; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+#welcome h1 {
+  font-size: 32px;
+  color: #e67e22;
+  margin-bottom: 6px;
+}
+
+#welcome .subtitle {
+  font-size: 18px;
+  color: #999;
+  margin-bottom: 40px;
+}
+
+.btn-start {
+  display: inline-block;
+  padding: 18px 48px;
+  font-size: 24px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #f39c12, #e67e22);
+  border: none;
+  border-radius: 50px;
+  box-shadow: 0 6px 20px rgba(243,156,18,0.4);
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-start:active { transform: scale(0.95); box-shadow: 0 3px 10px rgba(243,156,18,0.3); }
+
+/* ---- STEP SCREENS (universe, character, location, object) ---- */
+.step-screen { padding-top: 24px; }
+
+.step-screen h2 {
+  font-size: 24px;
+  text-align: center;
+  margin-bottom: 20px;
+  color: var(--universe-color, #333);
+}
+
+.choices-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.choice-card {
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 20px 12px;
+  text-align: center;
+  box-shadow: var(--card-shadow);
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  border: 3px solid transparent;
+}
+
+.choice-card:active { transform: scale(0.95); }
+
+.choice-card .emoji { font-size: 48px; display: block; margin-bottom: 8px; }
+.choice-card .label { font-size: 16px; font-weight: 600; line-height: 1.3; }
+
+.choice-card.selected {
+  border-color: var(--universe-color, var(--primary));
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  transform: scale(1.03);
+}
+
+/* Universe cards: 3x2 on wider, 2x3 on narrow */
+.choices-grid.universe-grid {
+  grid-template-columns: 1fr 1fr;
+}
+
+/* Back button */
+.btn-back {
+  position: absolute;
+  top: 26px;
+  left: 16px;
+  background: none;
+  border: none;
+  font-size: 28px;
+  cursor: pointer;
+  z-index: 10;
+  color: #999;
+}
+
+/* ---- STORY SCREEN ---- */
+#story-screen {
+  padding: 0;
+  background: #fff;
+}
+
+.story-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: var(--universe-color);
+  color: #fff;
+}
+
+.story-header .title { font-size: 18px; font-weight: 700; }
+
+.btn-restart {
+  background: rgba(255,255,255,0.25);
+  border: none;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+}
+
+.btn-restart:active { background: rgba(255,255,255,0.4); }
+
+.story-viewport {
+  flex: 1;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+.story-pages-container {
+  display: flex;
+  height: 100%;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.story-page {
+  min-width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 24px;
+  text-align: center;
+}
+
+.story-page .page-illustration {
+  width: 100%;
+  max-width: 320px;
+  margin-bottom: 16px;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+.story-page .page-illustration svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.story-page .page-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--universe-color);
+  margin-bottom: 14px;
+}
+
+.story-page .page-text {
+  font-size: 19px;
+  line-height: 1.6;
+  color: #444;
+  max-width: 380px;
+}
+
+.story-nav {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px 24px;
+  background: #fff;
+}
+
+.story-nav button {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  background: var(--universe-color);
+  color: #fff;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.story-nav button:active { transform: scale(0.9); }
+.story-nav button:disabled { opacity: 0.3; cursor: default; }
+
+.page-dots {
+  display: flex;
+  gap: 8px;
+}
+
+.page-dots span {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: #ddd;
+  transition: background 0.3s, transform 0.3s;
+}
+
+.page-dots span.active {
+  background: var(--universe-color);
+  transform: scale(1.3);
+}
+
+/* ---- ANIMATIONS ---- */
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.choice-card { animation: card-in 0.35s ease both; }
+.choice-card:nth-child(1) { animation-delay: 0.05s; }
+.choice-card:nth-child(2) { animation-delay: 0.1s; }
+.choice-card:nth-child(3) { animation-delay: 0.15s; }
+.choice-card:nth-child(4) { animation-delay: 0.2s; }
+.choice-card:nth-child(5) { animation-delay: 0.25s; }
+.choice-card:nth-child(6) { animation-delay: 0.3s; }
+
+/* Responsive tweaks */
+@media (max-height: 650px) {
+  .story-page { padding: 16px 18px; }
+  .story-page .page-illustration { max-width: 260px; margin-bottom: 10px; }
+  .story-page .page-title { font-size: 18px; margin-bottom: 10px; }
+  .story-page .page-text { font-size: 16px; }
+}
+
+@media (min-width: 500px) {
+  .choices-grid { max-width: 460px; }
+  .story-page .page-text { max-width: 440px; }
+}
+</style>
+</head>
+<body>
+
+<!-- WELCOME -->
+<div id="welcome" class="screen active">
+  <div class="logo">📖</div>
+  <h1>Boite a histoires</h1>
+  <p class="subtitle">Choisis ton aventure !</p>
+  <button class="btn-start" onclick="goTo('universe')">C'est parti !</button>
+</div>
+
+<!-- UNIVERSE -->
+<div id="universe" class="screen step-screen">
+  <div class="progress-bar" id="prog-universe"></div>
+  <h2>Choisis ton univers</h2>
+  <div class="choices-grid universe-grid" id="universe-grid"></div>
+</div>
+
+<!-- CHARACTER -->
+<div id="character" class="screen step-screen">
+  <button class="btn-back" onclick="goBack('universe')">&larr;</button>
+  <div class="progress-bar" id="prog-character"></div>
+  <h2>Choisis ton personnage</h2>
+  <div class="choices-grid" id="character-grid"></div>
+</div>
+
+<!-- LOCATION -->
+<div id="location" class="screen step-screen">
+  <button class="btn-back" onclick="goBack('character')">&larr;</button>
+  <div class="progress-bar" id="prog-location"></div>
+  <h2>Choisis ton lieu</h2>
+  <div class="choices-grid" id="location-grid"></div>
+</div>
+
+<!-- OBJECT -->
+<div id="object" class="screen step-screen">
+  <button class="btn-back" onclick="goBack('location')">&larr;</button>
+  <div class="progress-bar" id="prog-object"></div>
+  <h2>Choisis ton objet</h2>
+  <div class="choices-grid" id="object-grid"></div>
+</div>
+
+<!-- STORY -->
+<div id="story-screen" class="screen">
+  <div class="story-header">
+    <span class="title" id="story-title"></span>
+    <button class="btn-restart" onclick="restart()">Recommencer</button>
+  </div>
+  <div class="story-viewport" id="story-viewport">
+    <div class="story-pages-container" id="story-pages"></div>
+  </div>
+  <div class="story-nav">
+    <button id="prev-btn" onclick="storyNav(-1)">&larr;</button>
+    <div class="page-dots" id="page-dots"></div>
+    <button id="next-btn" onclick="storyNav(1)">&rarr;</button>
+  </div>
+</div>
+
+<script>
+/* ====================================================================
+   DATA
+   ==================================================================== */
+const DATA = {
+  pirates: {
+    id: 'pirates', name: 'Pirates', emoji: '\u{1F3F4}\u200D\u2620\uFE0F', color: '#2980b9',
+    personnages: [
+      { name: 'Capitaine Barbe-Rouge', emoji: '\uD83E\uDDD4' },
+      { name: 'Pirate Lili', emoji: '\uD83D\uDC67' },
+      { name: 'Tom le matelot', emoji: '\uD83E\uDDD1\u200D\u2708\uFE0F' },
+      { name: 'Perroquet Pablo', emoji: '\uD83E\uDD9C' }
+    ],
+    lieux: [
+      { name: "L'\u00eele au tr\u00e9sor", emoji: '\uD83C\uDFDD\uFE0F' },
+      { name: 'Le bateau pirate', emoji: '\u26F5' },
+      { name: 'La grotte secr\u00e8te', emoji: '\uD83D\uDD73\uFE0F' },
+      { name: 'Le port myst\u00e9rieux', emoji: '\uD83C\uDF0A' }
+    ],
+    objets: [
+      { name: 'La carte au tr\u00e9sor', emoji: '\uD83D\uDDFA\uFE0F' },
+      { name: 'Le coffre magique', emoji: '\uD83D\uDCE6' },
+      { name: 'La longue-vue enchant\u00e9e', emoji: '\uD83D\uDD2D' },
+      { name: 'Le drapeau pirate', emoji: '\u{1F3F4}\u200D\u2620\uFE0F' }
+    ],
+    stories: [
+      // Template 0 — Le monstre marin qui avait peur
+      [
+        { title: "L'appel de la mer", emoji: '\u26F5', text: "Le soleil se l\u00e8ve sur l'oc\u00e9an et peint les vagues en orange. {personnage} se tient sur le pont du bateau, le nez au vent. L'air sent bon le sel et les algues. Les mouettes crient au-dessus des voiles. Aujourd'hui, direction {lieu} ! On dit qu'un terrible monstre marin y garde un tr\u00e9sor fabuleux. {personnage} serre {objet} dans ses mains. Le vent du nord souffle fort. C'est le vent qui vient des pays froids, du haut de la boussole." },
+        { title: 'La temp\u00eate surprise', emoji: '\uD83C\uDF0A', text: "CRAAC ! Le ciel devient tout noir d'un coup. Les vagues grossissent et secouent le bateau dans tous les sens. Plouf, splash, BOOM ! L'eau passe par-dessus le pont. {personnage} s'accroche au m\u00e2t de toutes ses forces. Les \u00e9clairs dessinent des zigzags dans le ciel. Le tonnerre gronde comme un gros tambour. \"B\u00e2bord ! Tribord !\" crie {personnage}. B\u00e2bord, c'est \u00e0 gauche du bateau, et tribord, c'est \u00e0 droite. Il faut manoeuvrer vite !" },
+        { title: 'Le calme apr\u00e8s la temp\u00eate', emoji: '\uD83C\uDF05', text: "Aussi vite qu'elle est arriv\u00e9e, la temp\u00eate s'en va. La mer redevient calme et lisse comme un miroir. Ouf ! Le bateau tangue encore un peu, mais {personnage} est sain et sauf. Et voil\u00e0 {lieu} qui appara\u00eet juste devant ! Mais quelque chose est bizarre : l'eau autour est couverte de grosses bulles qui font bloup, bloup, bloup. {objet} se met \u00e0 vibrer. Quelque chose de TR\u00c8S gros se cache sous la surface." },
+        { title: 'Le monstre appara\u00eet', emoji: '\uD83D\uDC19', text: "SPLAAAASH ! Une \u00e9norme tentacule sort de l'eau ! Puis une autre, et encore une autre ! Un gigantesque poulpe se dresse devant le bateau. Il a des yeux grands comme des roues de charrette et des ventouses grosses comme des assiettes. \"GROOOOAR !\" rugit le monstre. Les vagues \u00e9claboussent tout. {personnage} tombe \u00e0 la renverse. Le poulpe est terrrrrrrifiant ! Il a huit bras comme tous les poulpes. Mais attendez... Pourquoi est-ce qu'il tremble ?" },
+        { title: 'Le monstre tremble', emoji: '\uD83D\uDE32', text: "Incroyable ! Le gigantesque poulpe... pleure ! De grosses larmes bleues coulent de ses yeux \u00e9normes et tombent dans la mer. Sploc, sploc, sploc. \"Je... je ne suis pas m\u00e9chant !\" sanglote le poulpe d'une voix toute tremblante. \"C'est les poissons qui m'ont dit de faire peur aux bateaux, sinon ils ne joueraient plus avec moi !\" {personnage} n'en revient pas. Ce monstre terrible n'est qu'un gros poulpe timide que les poissons font marcher !" },
+        { title: 'Le plan des poissons', emoji: '\uD83D\uDC1F', text: "{personnage} s'assoit au bord du bateau, tout pr\u00e8s du poulpe. \"Raconte-moi tout, gros poulpe.\" Le poulpe s'appelle Octave. Il explique que les poissons-clowns, ceux avec des rayures orange et blanches, lui ont dit de faire fuir les bateaux pour garder {lieu} pour eux. \"Si tu refuses, on ne sera plus tes amis !\" disaient-ils. Octave avait tellement peur d'\u00eatre seul qu'il ob\u00e9issait. {objet} brille d'une lumi\u00e8re douce et chaude." },
+        { title: 'La visite sous-marine', emoji: '\uD83E\uDD3F', text: "Octave propose \u00e0 {personnage} de descendre sous l'eau pour voir la v\u00e9rit\u00e9. Le poulpe fait une bulle d'air magique autour de {personnage}. Plouf ! Sous la mer, c'est magnifique ! Des coraux rouges, roses et jaunes poussent partout. Des hippocampes se balancent dans le courant. Et au fond, {personnage} voit les poissons-clowns assis sur un \u00e9nooorme tas de tr\u00e9sors vol\u00e9s \u00e0 tous les bateaux qu'Octave a fait fuir. Voil\u00e0 la v\u00e9rit\u00e9 !" },
+        { title: 'Le coup de th\u00e9\u00e2tre', emoji: '\u2728', text: "\"STOP !\" crie {personnage} aux poissons-clowns. Ils sursautent et essaient de se cacher derri\u00e8re les tr\u00e9sors. \"Octave n'est pas votre esclave ! Et ces tr\u00e9sors ne sont pas \u00e0 vous !\" Les poissons-clowns baissent la t\u00eate. Mais la VRAIE surprise, c'est que sous la pile de tr\u00e9sors, il y a un b\u00e9b\u00e9 tortue de mer coinc\u00e9e ! Elle ne peut plus bouger. \"Au secours !\" couine la petite tortue. {objet} brille intens\u00e9ment." },
+        { title: 'Tout le monde aide', emoji: '\uD83D\uDC22', text: "Octave utilise ses huit bras pour soulever les tr\u00e9sors un par un. Les poissons-clowns, tout penauds, aident \u00e0 pousser les pi\u00e8ces. {personnage} guide la petite tortue vers la lumi\u00e8re. \"Doucement, doucement.\" La tortue est libre ! Elle bat des nageoires de joie. Les poissons-clowns pleurent : \"Pardon, Octave. On \u00e9tait jaloux parce que tu es grand et fort, et nous on est tout petits.\" Octave les prend d\u00e9licatement dans une tentacule et les serre." },
+        { title: 'Le vrai tr\u00e9sor de la mer', emoji: '\uD83C\uDF89', text: "Ce soir, {lieu} brille sous les \u00e9toiles. Octave, les poissons-clowns, la petite tortue et {personnage} font la f\u00eate ensemble. Le poulpe crache de l'encre en forme de feux d'artifice dans l'eau. Splendide ! Les poissons-clowns dansent entre ses tentacules. La tortue fait des bulles en rythme. {personnage} garde {objet} tout pr\u00e8s. Ce qui semblait \u00eatre le plus terrible des monstres \u00e9tait en fait le plus doux des amis. Et les vrais m\u00e9chants \u00e9taient juste des petits poissons qui avaient besoin d'un c\u00e2lin. Bonne nuit, pirate au grand coeur !" }
+      ],
+      // Template 1 — La carte qui menait au mauvais endroit
+      [
+        { title: 'La carte myst\u00e9rieuse', emoji: '\uD83D\uDDFA\uFE0F', text: "{personnage} trouve un message dans une bouteille \u00e9chou\u00e9e sur la plage. \u00c0 l'int\u00e9rieur, il y a une carte avec un grand X rouge. \"Le tr\u00e9sor le plus pr\u00e9cieux du monde est \u00e0 {lieu} !\" dit le message. {personnage} saute de joie. La carte montre qu'il faut naviguer vers l'est. L'est, c'est l\u00e0 o\u00f9 le soleil se l\u00e8ve le matin. {personnage} attrape {objet} et court vers le bateau. L'aventure attend !" },
+        { title: "Le voyage vers l'est", emoji: '\u26F5', text: "Le bateau file sur la mer bleue. {personnage} garde le cap vers l'est en suivant le soleil du matin. Des dauphins accompagnent le bateau en sautant hors de l'eau. Woush, woush ! Ils font des sauts p\u00e9rilleux magnifiques. Les dauphins sont des mammif\u00e8res, comme nous. Ils respirent de l'air et allaitent leurs petits. Un dauphin crache un jet d'eau sur {personnage}. Pffft ! \"H\u00e9 !\" rit {personnage}, tout mouill\u00e9." },
+        { title: "L'\u00eele de la carte", emoji: '\uD83C\uDFDD\uFE0F', text: "Voil\u00e0 {lieu} ! {personnage} suit la carte : dix pas vers le nord, tourner \u00e0 gauche, cinq pas encore. Le X devrait \u00eatre juste... ici ! {personnage} creuse, creuse, creuse. Mais il ne trouve rien du tout ! Juste du sable, des cailloux et un ver de terre surpris. \"Hein ?\" {personnage} retourne la carte dans tous les sens. C'est s\u00fbrement une erreur. Ou bien... quelqu'un a fait une fausse carte expr\u00e8s !" },
+        { title: "La vieille dame de l'\u00eele", emoji: '\uD83D\uDC75', text: "\"Tu ne trouveras rien ici, petit pirate.\" {personnage} sursaute ! Une toute petite vieille dame est assise sur un rocher. Elle a un chapeau plein de coquillages et un sourire malicieux. \"C'est moi qui ai \u00e9crit cette fausse carte.\" {personnage} est en col\u00e8re ! \"Pourquoi ?\" \"Parce que le vrai tr\u00e9sor n'est jamais l\u00e0 o\u00f9 on croit. Suis-moi, je vais te montrer un secret.\" La vieille dame se l\u00e8ve et marche vers une falaise." },
+        { title: 'Le passage secret', emoji: '\uD83D\uDD73\uFE0F', text: "La vieille dame pousse un rocher couvert d'\u00e9toiles de mer. Les \u00e9toiles de mer n'ont pas de cerveau mais elles ont des yeux au bout de chaque bras ! Derri\u00e8re le rocher, un passage secret m\u00e8ne sous la terre. Il y fait noir. {objet} se met \u00e0 briller et \u00e9claire le chemin. Les parois sont couvertes de coquillages qui scintillent comme des bijoux. L'air sent le sel et le myst\u00e8re. Drip, drip, font les gouttes qui tombent du plafond." },
+        { title: 'La salle des miroirs', emoji: '\uD83D\uDD2E', text: "Le passage d\u00e9bouche sur une salle remplie de miroirs faits d'eau de mer fig\u00e9e ! {personnage} se voit refl\u00e9t\u00e9 partout, mais chaque miroir montre quelque chose de diff\u00e9rent. Dans l'un, {personnage} est un g\u00e9ant. Dans l'autre, un tout petit b\u00e9b\u00e9. Dans un troisi\u00e8me... {personnage} est une SIR\u00c8NE ! \"Les miroirs montrent toutes les vies que tu aurais pu vivre\", dit la vieille dame. Mais le dernier miroir est couvert d'un drap." },
+        { title: 'Le miroir de v\u00e9rit\u00e9', emoji: '\uD83D\uDCA1', text: "\"C'est le miroir de v\u00e9rit\u00e9\", chuchote la vieille dame. \"Il montre le vrai tr\u00e9sor de celui qui regarde dedans.\" {personnage} retire le drap. Et le miroir montre... les amis de {personnage} ! Octave le poulpe, les mouettes du port, les dauphins de la mer. Tous ceux qui aiment {personnage}. \"Je ne comprends pas\", dit {personnage}. La vieille dame sourit." },
+        { title: 'La r\u00e9v\u00e9lation', emoji: '\u2764\uFE0F', text: "\"Je suis une ancienne pirate\", dit la vieille dame. \"J'ai pass\u00e9 toute ma vie \u00e0 chercher des tr\u00e9sors en or. J'en ai trouv\u00e9 des montagnes ! Mais j'\u00e9tais seule. Pas un seul ami. Le jour o\u00f9 j'ai compris que les amis sont le vrai tr\u00e9sor, il \u00e9tait trop tard. Alors j'\u00e9cris des fausses cartes pour attirer les pirates ici et leur montrer la v\u00e9rit\u00e9 avant qu'ils ne fassent la m\u00eame erreur.\" Ses yeux brillent de larmes. {personnage} sent son coeur se serrer." },
+        { title: "L'invitation", emoji: '\uD83E\uDD1D', text: "{personnage} prend la main de la vieille dame. \"Vous savez quoi ? Vous n'\u00eates plus seule. Venez avec moi sur mon bateau !\" La vieille dame \u00e9carquille les yeux. \"C'est... c'est vrai ?\" \"Bien s\u00fbr ! Mes amis seront vos amis.\" La vieille dame pleure de joie. Elle prend un petit sac et ferme sa grotte. {objet} brille comme jamais. Ensemble, ils retournent au bateau. Les dauphins sautent autour d'eux, joyeux." },
+        { title: 'La f\u00eate des amis', emoji: '\uD83C\uDF89', text: "Ce soir, \u00e0 {lieu}, tout le monde accueille la vieille dame. Elle s'appelle Marguerite et elle conna\u00eet mille histoires de pirates. Les mouettes dansent, les crabes tapent des pinces. Marguerite rit aux \u00e9clats pour la premi\u00e8re fois depuis des ann\u00e9es. {personnage} regarde les \u00e9toiles avec {objet}. La carte ne menait pas au mauvais endroit, finalement. Elle menait exactement l\u00e0 o\u00f9 il fallait : vers une amie qui attendait depuis longtemps. Bonne nuit, pirate g\u00e9n\u00e9reux !" }
+      ],
+      // Template 2 — Le bateau qui ne voulait pas flotter
+      [
+        { title: 'Le nouveau bateau', emoji: '\u26F5', text: "{personnage} est tellement content ! On vient de lui offrir un tout nouveau bateau pour aller \u00e0 {lieu}. Il est beau, avec des voiles blanches et une coque en bois brillant. {personnage} met {objet} \u00e0 bord et pousse le bateau vers la mer. Plouf ! Le bateau touche l'eau et... il coule ! Glou glou glou ! En deux secondes, il est au fond ! \"NOOON !\" crie {personnage}. Que se passe-t-il ?" },
+        { title: 'Le myst\u00e8re du bateau', emoji: '\uD83D\uDD0D', text: "{personnage} repousse le bateau sur le sable et l'examine. Pas de trou, pas de fissure. Pourquoi coule-t-il ? Un vieux marin passe par l\u00e0. \"Ton bateau est trop lourd, petit. Regarde : il est rempli de pierres !\" C'est vrai ! \u00c0 l'int\u00e9rieur, des dizaines de pierres sont cach\u00e9es sous les planches. \"Qui a mis des pierres dans mon bateau ?\" se demande {personnage}. Un bateau flotte parce qu'il est plus l\u00e9ger que l'eau qu'il pousse. Avec des pierres, impossible !" },
+        { title: 'Les traces suspectes', emoji: '\uD83D\uDC3E', text: "{personnage} trouve des traces de pattes dans le sable, autour du bateau. Des petites pattes avec des griffes. Et aussi... des empreintes de plumes. Qui a pu faire \u00e7a ? {objet} vibre et pointe vers la for\u00eat derri\u00e8re la plage. {personnage} suit les traces entre les palmiers. Les traces m\u00e8nent \u00e0 un crabe g\u00e9ant rouge, un perroquet vert et un petit singe, tous assis en cercle. Ils chuchotent !" },
+        { title: 'Les coupables', emoji: '\uD83E\uDD80', text: "\"C'EST VOUS qui avez mis les pierres dans mon bateau !\" Les trois animaux sursautent. Le crabe cache ses pinces, le perroquet met sa t\u00eate sous son aile, le singe couvre ses yeux. \"Pourquoi avez-vous fait \u00e7a ?\" Le perroquet prend la parole : \"Parce qu'on ne veut pas que tu partes \u00e0 {lieu} ! Si tu pars, on sera tout seuls. Tu es notre seul ami sur cette plage.\" Le singe fait un petit cri triste. \"Ouii, ouiii !\"" },
+        { title: 'La tristesse des amis', emoji: '\uD83D\uDE22', text: "{personnage} sent son coeur fondre. Ces trois petits animaux ne sont pas m\u00e9chants. Ils ont juste peur de perdre leur ami ! Le crabe fait claquer ses pinces doucement. \"Chaque fois que quelqu'un construit un bateau, il part et ne revient jamais.\" Le perroquet hoche la t\u00eate. \"Plus jamais jamais !\" Le singe se blottit contre {personnage}. Quand le vent souffle de l'ouest, du c\u00f4t\u00e9 du coucher de soleil, il apporte une odeur de fleurs tristes." },
+        { title: 'La grande id\u00e9e', emoji: '\uD83D\uDCA1', text: "\"Et si vous veniez AVEC moi ?\" dit soudain {personnage}. Les trois animaux l\u00e8vent la t\u00eate. \"Avec toi ? Sur le bateau ? Sur la MER ?\" \"Oui ! Un \u00e9quipage de pirates a besoin d'un crabe pour r\u00e9parer la coque, d'un perroquet pour surveiller l'horizon, et d'un singe pour grimper dans les voiles !\" Les yeux des animaux brillent. Le crabe agite ses pinces de joie. Le perroquet fait \"Hourra !\" Le singe saute partout. Ils retirent toutes les pierres du bateau en deux minutes." },
+        { title: 'Le vrai d\u00e9part', emoji: '\uD83C\uDF0A', text: "Cette fois, le bateau flotte magnifiquement ! Il danse sur les vagues comme un bouchon joyeux. Le crabe s'installe \u00e0 la proue et surveille les rochers sous l'eau avec ses yeux sur tiges. Le perroquet monte tout en haut du m\u00e2t et crie \"Terre en vue !\" m\u00eame s'ils viennent juste de partir. Le singe se balance dans les cordages. {personnage} tient la barre avec {objet}. L'\u00e9quipage le plus bizarre de la mer est en route vers {lieu} !" },
+        { title: 'La temp\u00eate et le sauvetage', emoji: '\u26C8\uFE0F', text: "Une temp\u00eate \u00e9clate ! Le vent souffle, les vagues montent. Le petit singe a peur et se cache dans un tonneau. Mais le crabe, lui, d\u00e9couvre un trou dans la coque et le bouche avec ses pinces. Le perroquet rep\u00e8re un passage calme entre les vagues et guide le bateau. Le singe sort du tonneau et attache les voiles pour qu'elles ne se d\u00e9chirent pas. Chacun fait exactement ce qu'il sait faire de mieux ! {objet} brille comme un phare dans la nuit." },
+        { title: "L'arriv\u00e9e triomphale", emoji: '\uD83C\uDFDD\uFE0F', text: "{personnage} et son \u00e9quipage arrivent \u00e0 {lieu} sous un arc-en-ciel ! C'est encore plus beau que dans les r\u00eaves. Des palmiers immenses, du sable blanc, de l'eau turquoise. Mais la vraie surprise : il y a d'autres animaux ici qui n'ont JAMAIS vu de crabe, de perroquet ou de singe ! \"Vous \u00eates incroyables !\" disent-ils. Le crabe rougit (encore plus que d'habitude). Le perroquet bombe le torse. Le singe fait une r\u00e9v\u00e9rence." },
+        { title: "L'\u00e9quipage pour toujours", emoji: '\uD83C\uDF1F', text: "Ce soir, sous les \u00e9toiles de {lieu}, l'\u00e9quipage fait griller des noix de coco autour d'un feu. Le crabe joue des pinces comme des castagnettes. Le perroquet chante des chansons de pirate. Le singe danse. {personnage} tient {objet} et sourit. Au d\u00e9but, les animaux avaient peur de le perdre, alors ils l'emp\u00eachaient de partir. Mais en l'accompagnant, ils ont d\u00e9couvert un monde immense et merveilleux. Parfois, ce qui nous fait peur nous emp\u00eache de vivre nos plus belles aventures. Bonne nuit, capitaine !" }
+      ],
+      // Template 3 — Le tr\u00e9sor qui rendait m\u00e9chant
+      [
+        { title: 'La l\u00e9gende du tr\u00e9sor', emoji: '\uD83D\uDCB0', text: "Tout le monde en parle au port : un tr\u00e9sor fabuleusement brillant se cache \u00e0 {lieu}. On dit que les diamants sont gros comme des pommes et que l'or brille m\u00eame dans le noir ! Tous les pirates veulent le trouver. {personnage} aussi ! La mer est agit\u00e9e aujourd'hui, le vent souffle du sud. Le vent du sud est chaud et apporte parfois du sable du d\u00e9sert. {personnage} prend {objet} et l\u00e8ve l'ancre. Direction le sud !" },
+        { title: 'Le pirate grognon', emoji: '\uD83D\uDE20', text: "En chemin, {personnage} croise un autre bateau. \u00c0 bord, le pirate Gustave grogne et crie sur tout le monde. \"Poussez-vous ! Le tr\u00e9sor est \u00c0 MOI !\" hurle-t-il. Son \u00e9quipage a l'air malheureux. Gustave a les yeux bizarres : ils brillent d'une lumi\u00e8re jaune, comme de l'or. \"Qu'est-ce qu'il a, celui-l\u00e0 ?\" se demande {personnage}. Une mouette se pose sur le m\u00e2t et murmure : \"Le tr\u00e9sor l'a d\u00e9j\u00e0 attrap\u00e9. Fais attention...\"" },
+        { title: "L'arriv\u00e9e \u00e0 {lieu}", emoji: '\uD83C\uDFDD\uFE0F', text: "{personnage} arrive \u00e0 {lieu}. C'est un endroit magnifique mais \u00e9trangement silencieux. Pas d'oiseaux, pas de crabes, m\u00eame les vagues sont muettes. Au centre, un \u00e9norme coffre en or brille d'une lumi\u00e8re aveuglante. {personnage} s'approche. Le coffre est ouvert et \u00e0 l'int\u00e9rieur, des milliers de pi\u00e8ces d'or et de bijoux scintillent. C'est... c'est tellement beau ! Les yeux de {personnage} se mettent \u00e0 briller aussi." },
+        { title: 'Le changement', emoji: '\u26A0\uFE0F', text: "{personnage} prend une poign\u00e9e d'or et soudain, quelque chose change. \"C'est mon tr\u00e9sor. MON tr\u00e9sor. Personne d'autre ne doit l'avoir !\" D'o\u00f9 vient cette pens\u00e9e ? Ce n'est pas {personnage}, \u00e7a ! Un crabe s'approche et {personnage} lui crie : \"VA-T'EN !\" Le crabe recule, effray\u00e9. {objet} tombe par terre et son \u00e9clat faiblit. L'or a quelque chose de bizarre. Il rend m\u00e9chant celui qui le touche !" },
+        { title: 'Le r\u00e9veil', emoji: '\uD83D\uDCA1', text: "Le petit crabe, au lieu de fuir, revient bravement et pince le doigt de {personnage}. \"OUILLE !\" La douleur r\u00e9veille {personnage} comme un seau d'eau froide. Les yeux redeviennent normaux. \"Qu'est-ce que... qu'est-ce que j'ai fait ?\" {personnage} regarde ses mains pleines d'or et les l\u00e2che d'un coup. Les pi\u00e8ces tombent avec un bruit de pluie m\u00e9tallique. CLING, CLING, CLING. Le crabe fait signe que oui avec ses pinces. Il vient de sauver {personnage} !" },
+        { title: 'Le secret du tr\u00e9sor', emoji: '\uD83D\uDD2E', text: "Sous le coffre, {personnage} d\u00e9couvre une inscription dans la roche : \"Cet or est maudit. Il rend \u00e9go\u00efste et m\u00e9chant quiconque le touche. Seul quelqu'un qui REFUSE l'or peut briser la mal\u00e9diction.\" Alors VOIL\u00c0 pourquoi le pirate Gustave \u00e9tait si grognon ! L'or l'a rendu m\u00e9chant ! {personnage} comprend maintenant. Il faut d\u00e9truire la mal\u00e9diction pour sauver tous les pirates. {objet} se remet \u00e0 briller, plus fort qu'avant." },
+        { title: "Jeter l'or", emoji: '\uD83C\uDF0A', text: "{personnage} prend une grande d\u00e9cision : il faut jeter TOUT l'or dans la mer ! C'est dur. L'or brille tellement... Mais {personnage} ferme les yeux et pousse le coffre. SPLAAAAASH ! L'or coule au fond de la mer. Et l\u00e0, un miracle ! L'or maudit se transforme en corail vivant ! Des coraux rouges, roses, violets poussent instantan\u00e9ment. Des poissons arrivent de partout. Des hippocampes, des \u00e9toiles de mer. Sous la mal\u00e9diction, il y avait un r\u00e9cif de corail magnifique qui attendait d'\u00eatre lib\u00e9r\u00e9." },
+        { title: 'Gustave est sauv\u00e9', emoji: '\uD83D\uDE02', text: "Le pirate Gustave arrive, les yeux encore jaunes et furieux. \"O\u00f9 est MON tr\u00e9sor ?!\" Mais quand il voit le corail, l'eau turquoise et tous les animaux marins, la lumi\u00e8re jaune quitte ses yeux. Son visage s'adoucit. \"C'est... c'est tellement beau.\" Il tombe \u00e0 genoux. \"Pardon. Pardon \u00e0 tous. L'or m'avait rendu horrible. Je criais sur mon \u00e9quipage, je ne partageais plus rien.\" Son \u00e9quipage court le prendre dans ses bras. Tout le monde pleure de joie." },
+        { title: "Le vrai tr\u00e9sor sous l'or", emoji: '\uD83E\uDD3F', text: "{personnage} plonge dans le nouveau r\u00e9cif avec {objet}. Sous les coraux, il y a un tout petit coffre en bois simple. Dedans, pas d'or. Juste un petit coquillage en spirale. Quand on le porte \u00e0 son oreille, il chante des chansons de marin dans toutes les langues du monde. C'est le v\u00e9ritable tr\u00e9sor de {lieu} ! Un tr\u00e9sor qui se partage et qui rend heureux. Les anneaux du coquillage tournent en spirale, comme la coquille d'un escargot de mer." },
+        { title: 'La f\u00eate du corail', emoji: '\uD83C\uDF89', text: "Ce soir, \u00e0 {lieu}, tous les pirates font la f\u00eate ensemble. Gustave est devenu le plus gentil de tous et il distribue des coquillages \u00e0 tout le monde. Le r\u00e9cif de corail brille sous la mer comme une ville sous-marine. Le petit crabe courageux est nomm\u00e9 \"h\u00e9ros de la plage\". {personnage} \u00e9coute le coquillage magique et entend une chanson douce. {objet} brille \u00e0 c\u00f4t\u00e9. Parfois, ce qui brille le plus n'est pas ce qui a le plus de valeur. Le vrai tr\u00e9sor, c'est ce qui rend les gens meilleurs. Bonne nuit, pirate sage !" }
+      ]
+    ]
+  },
+
+  quotidien: {
+    id: 'quotidien', name: 'Vie quotidienne', emoji: '\uD83C\uDFE0', color: '#27ae60',
+    personnages: [
+      { name: 'Emma', emoji: '\uD83D\uDC67' },
+      { name: 'Lucas', emoji: '\uD83D\uDC66' },
+      { name: 'Jos\u00e9phine', emoji: '\uD83D\uDC75' },
+      { name: 'Martin', emoji: '\uD83D\uDC68' }
+    ],
+    lieux: [
+      { name: 'La maison', emoji: '\uD83C\uDFE0' },
+      { name: "L'\u00e9cole", emoji: '\uD83C\uDFEB' },
+      { name: 'Le parc', emoji: '\uD83C\uDF33' },
+      { name: 'Le march\u00e9', emoji: '\uD83D\uDED2' }
+    ],
+    objets: [
+      { name: 'Le doudou pr\u00e9f\u00e9r\u00e9', emoji: '\uD83E\uDDF8' },
+      { name: 'Le v\u00e9lo rouge', emoji: '\uD83D\uDEB2' },
+      { name: 'Le livre magique', emoji: '\uD83D\uDCD6' },
+      { name: 'Le g\u00e2teau surprise', emoji: '\uD83C\uDF82' }
+    ],
+    stories: [
+      // Template 0 — Le jour o\u00f9 tout allait \u00e0 l'envers
+      [
+        { title: 'Le matin bizarre', emoji: '\uD83C\uDF1E', text: "Dring ! Le r\u00e9veil sonne et {personnage} se l\u00e8ve. Mais quelque chose est bizarre ce matin. Les chaussettes sont d\u00e9pareill\u00e9es : une rouge, une verte. Le chat dort DANS le bol de c\u00e9r\u00e9ales. Et les tartines tombent TOUJOURS du c\u00f4t\u00e9 de la confiture. Splatch ! {personnage} soupire. C'est une de ces journ\u00e9es o\u00f9 tout va de travers. {objet} est introuvable ! Ce n'est pas \u00e0 sa place habituelle. O\u00f9 peut-il bien \u00eatre ?" },
+        { title: 'La recherche', emoji: '\uD83D\uDD0D', text: "{personnage} cherche {objet} partout. Sous le lit ? Non, juste des moutons de poussi\u00e8re. Dans le placard ? Non, juste un vieux bonnet. Derri\u00e8re le canap\u00e9 ? Non, juste une pi\u00e8ce de un euro et trois miettes de biscuit. {personnage} commence \u00e0 s'inqui\u00e9ter. \"Je ne peux pas aller \u00e0 {lieu} sans {objet} !\" Le ventre se serre. Les yeux piquent un peu. Quand on perd quelque chose qu'on aime, \u00e7a fait mal au coeur." },
+        { title: 'Le chemin quand m\u00eame', emoji: '\uD83D\uDEB6', text: "Maman dit qu'il faut quand m\u00eame aller \u00e0 {lieu}. {personnage} tra\u00eene des pieds sur le trottoir. Tout semble gris. MAIS ATTENTION ! {personnage} oublie de regarder avant de traverser ! Un v\u00e9lo passe tout pr\u00e8s. DRIIING ! \"Fais attention !\" crie le cycliste. Ouf ! {personnage} avait oubli\u00e9 la r\u00e8gle : on regarde \u00e0 gauche, puis \u00e0 droite, puis encore \u00e0 gauche avant de traverser. M\u00eame quand on est triste, on fait attention sur la route." },
+        { title: 'Le nouvel enfant', emoji: '\uD83D\uDC4B', text: "\u00c0 {lieu}, {personnage} s'assoit dans un coin, tout boudeur. Les bras crois\u00e9s, la mine renfrogn\u00e9e. Un enfant qu'on n'a jamais vu s'approche. Il s'appelle Milo. Il a les cheveux en bataille et un grand sourire. \"Tu as l'air triste. \u00c7a va ?\" \"Non. J'ai perdu {objet} et ma journ\u00e9e est nulle.\" Milo s'assoit \u00e0 c\u00f4t\u00e9. \"Tu sais quoi ? Moi aussi j'ai eu une journ\u00e9e horrible une fois. Et puis il s'est pass\u00e9 un truc g\u00e9nial.\"" },
+        { title: "L'histoire de Milo", emoji: '\uD83D\uDCA1', text: "\"Un jour\", raconte Milo, \"j'ai rat\u00e9 mon bus, je suis tomb\u00e9 dans une flaque, et j'ai perdu mon go\u00fbter. J'\u00e9tais furieux !\" {personnage} \u00e9coute, les yeux grands ouverts. \"Et puis, en marchant sous la pluie, j'ai trouv\u00e9 un petit chaton tout mouill\u00e9, cach\u00e9 sous une poubelle. Je l'ai sauv\u00e9. Il s'appelle Biscuit et c'est mon meilleur ami maintenant !\" Milo montre une photo d'un chat roux adorable. {personnage} sourit pour la premi\u00e8re fois de la journ\u00e9e." },
+        { title: 'Le jeu ensemble', emoji: '\uD83C\uDFB2', text: "Milo entra\u00eene {personnage} dans un jeu. Ils construisent une cabane avec des chaises et des couvertures \u00e0 {lieu}. \"C'est notre ch\u00e2teau fort !\" dit Milo. Ils inventent des histoires de chevaliers et de dragons. D'autres enfants viennent jouer avec eux. Bient\u00f4t, il y a six enfants dans la cabane et tout le monde rit tellement fort que les murs de couvertures tremblent. {personnage} a presque oubli\u00e9 sa mauvaise journ\u00e9e !" },
+        { title: 'Le coup de fil', emoji: '\uD83D\uDCDE', text: "DRING DRING ! C'est Maman au t\u00e9l\u00e9phone. \"J'ai retrouv\u00e9 {objet} ! Il \u00e9tait... dans le r\u00e9frig\u00e9rateur !\" QUOI ?! Dans le R\u00c9FRIG\u00c9RATEUR ?! {personnage} \u00e9clate de rire. Comment {objet} a-t-il pu arriver dans le frigo ? \"Tu as d\u00fb le poser l\u00e0 hier soir en prenant ton yaourt !\" {personnage} rit tellement que les larmes coulent. Milo rit aussi m\u00eame s'il ne comprend pas. Le rire, c'est contagieux comme un b\u00e2illement !" },
+        { title: 'La surprise du retour', emoji: '\uD83C\uDF81', text: "En rentrant \u00e0 la maison, {personnage} retrouve {objet}, tout froid mais intact. \"Brrr, tu as d\u00fb avoir froid l\u00e0-dedans !\" dit {personnage} en le serrant fort. Mais la VRAIE surprise, c'est que Maman a pr\u00e9par\u00e9 un go\u00fbter extraordinaire parce qu'elle se sentait coupable de la matin\u00e9e rat\u00e9e. Des cr\u00eapes en forme d'\u00e9toiles, du chocolat chaud et des fraises. \"Maman, c'est le meilleur go\u00fbter du monde !\"" },
+        { title: 'Le message \u00e0 Milo', emoji: '\uD83D\uDC8C', text: "{personnage} dessine une carte pour Milo avec des crayons de toutes les couleurs. \"Merci d'avoir transform\u00e9 ma journ\u00e9e horrible en journ\u00e9e g\u00e9niale.\" Sur la carte, il dessine la cabane, le chat Biscuit et deux bonshommes qui rigolent. Demain, \u00e0 {lieu}, {personnage} la donnera \u00e0 Milo. {objet} est bien au chaud, \u00e0 sa place cette fois. Pas dans le frigo !" },
+        { title: 'Le secret des mauvaises journ\u00e9es', emoji: '\uD83C\uDF19', text: "Ce soir, dans son lit, {personnage} serre {objet} et repense \u00e0 cette dr\u00f4le de journ\u00e9e. Ce matin, tout allait mal. Ce soir, c'est une des plus belles journ\u00e9es de sa vie. {personnage} a un nouvel ami, un souvenir rigolo du frigo, et un go\u00fbter de roi. Peut-\u00eatre que les mauvaises journ\u00e9es, c'est comme les nuages : ils cachent le soleil un moment, mais derri\u00e8re, le ciel est toujours bleu. Bonne nuit, petit courageux !" }
+      ],
+      // Template 1 — La recette secr\u00e8te
+      [
+        { title: 'Le grand projet', emoji: '\uD83C\uDF73', text: "Aujourd'hui, {personnage} a d\u00e9cid\u00e9 de pr\u00e9parer la plus d\u00e9licieuse surprise du monde \u00e0 {lieu} ! Ce sera un g\u00e2teau absolument extraordinaire. {personnage} a trouv\u00e9 une vieille recette secr\u00e8te dans un tiroir : \"Le g\u00e2teau du bonheur. Ingr\u00e9dients : de la farine, du sucre, des oeufs, du beurre, et surtout... un ingr\u00e9dient myst\u00e8re.\" L'ingr\u00e9dient myst\u00e8re est griffonn\u00e9 et on ne peut pas le lire ! {objet} est pr\u00eat. L'aventure commence !" },
+        { title: 'Les courses', emoji: '\uD83D\uDED2', text: "{personnage} part acheter les ingr\u00e9dients. \u00c0 la boulangerie, le boulanger donne un sac de farine. Elle est toute blanche et douce comme de la neige. \u00c0 l'\u00e9picerie, les oeufs dorment dans leur bo\u00eete. Il y en a six, bien rang\u00e9s. {personnage} les porte comme un tr\u00e9sor. Le beurre est froid et glissant. Le sucre brille comme des petits cristaux. Mais l'ingr\u00e9dient myst\u00e8re ? Personne ne sait ce que c'est. {objet} vibre d'impatience." },
+        { title: 'Les d\u00e9g\u00e2ts en cuisine', emoji: '\uD83D\uDCA5', text: "De retour \u00e0 {lieu}, {personnage} met tout sur la table et commence. CRAC ! Premier oeuf... \u00e0 c\u00f4t\u00e9 du bol. Le jaune coule sur la table. \"Oh non !\" POUF ! La farine s'envole quand {personnage} ouvre le sac trop vite. Un nuage blanc couvre TOUT. Le chat \u00e9ternue : \"ATCHOUM !\" Il a de la farine sur les moustaches. La cuisine ressemble \u00e0 un champ de bataille. {personnage} a de la farine sur le nez et dans les cheveux." },
+        { title: 'La voisine magique', emoji: '\uD83D\uDC75', text: "TOC TOC TOC. C'est Madame Dupont, la voisine. Elle a senti la farine jusque chez elle ! Elle regarde la cuisine et \u00e9clate de rire. \"Oh l\u00e0 l\u00e0 ! Je crois que tu as besoin d'un coup de main.\" {personnage} pensait que la voisine allait gronder. Mais non ! Madame Dupont adore cuisiner. \"Sais-tu que pour casser un oeuf, il faut le taper doucement sur le bord du bol ? Comme \u00e7a. Toc !\" L'oeuf se casse parfaitement. \"Trop facile !\" dit {personnage}." },
+        { title: 'La p\u00e2te magique', emoji: '\u2728', text: "Madame Dupont montre tout \u00e0 {personnage}. On met la farine en volcan, les oeufs au milieu, le beurre fondu et le sucre. On m\u00e9lange doucement, en tournant toujours dans le m\u00eame sens. \"Comme une horloge\", dit Madame Dupont. La p\u00e2te devient lisse et dor\u00e9e. Elle sent d\u00e9j\u00e0 bon ! {objet} semble briller de plaisir. \"Mais l'ingr\u00e9dient myst\u00e8re ?\" demande {personnage}. \"On verra apr\u00e8s la cuisson\", dit Madame Dupont avec un clin d'oeil myst\u00e9rieux." },
+        { title: "Le four et l'attente", emoji: '\u23F3', text: "Le g\u00e2teau entre dans le four. Il fait 180 degr\u00e9s l\u00e0-dedans, c'est tr\u00e8s chaud ! On ne touche JAMAIS un four, c'est dangereux. Pendant que le g\u00e2teau cuit, {personnage} et Madame Dupont nettoient la cuisine. Frotter, rincer, essuyer. La cuisine redevient propre. Une d\u00e9licieuse odeur commence \u00e0 se r\u00e9pandre. Miam ! Le g\u00e2teau gonfle, gonfle, gonfle derri\u00e8re la vitre du four. Il est dor\u00e9 et magnifique. \"Encore cinq minutes !\" dit Madame Dupont." },
+        { title: 'La catastrophe du g\u00e2teau', emoji: '\uD83D\uDE31', text: "DRIIIING ! C'est pr\u00eat ! {personnage} est tellement excit\u00e9 ! Madame Dupont sort le g\u00e2teau du four et le pose sur la table. Il est beau, il est dor\u00e9, il sent merveilleusement bon. Et puis... PFFFFFFT. Le g\u00e2teau se d\u00e9gonfle comme un ballon ! Il devient tout plat, tout ratin\u00e9, tout triste. \"NOOOOON !\" {personnage} a les larmes aux yeux. C'est rat\u00e9. Compl\u00e8tement rat\u00e9. Le plus beau g\u00e2teau du monde est devenu une cr\u00eape toute moche." },
+        { title: "L'ingr\u00e9dient myst\u00e8re", emoji: '\uD83D\uDCA1', text: "Madame Dupont regarde {personnage} et sourit. \"Tu sais quoi ? Le g\u00e2teau est rat\u00e9, et c'est pas grave du tout. Car l'ingr\u00e9dient myst\u00e8re de la recette du bonheur, je le connais.\" {personnage} renifle. \"C'est quoi ?\" \"C'est le RIRE. D\u00e9coupe le g\u00e2teau rat\u00e9 et go\u00fbte.\" {personnage} prend un morceau. C'est... D\u00c9LICIEUX ! Plat et moche, mais d\u00e9licieux ! {personnage} \u00e9clate de rire en voyant la t\u00eate du g\u00e2teau aplati. Madame Dupont rit aussi." },
+        { title: 'Le partage', emoji: '\uD83C\uDF70', text: "Ils coupent le g\u00e2teau plat en petits morceaux et le partagent avec les voisins. Tout le monde glousse en voyant la forme du g\u00e2teau. \"On dirait une galette !\" \"Non, un frisbee !\" \"C'est le g\u00e2teau le plus dr\u00f4le du monde !\" \u00c0 {lieu}, les rires r\u00e9sonnent. {objet} tr\u00f4ne au milieu de la table. Chaque personne qui go\u00fbte dit la m\u00eame chose : \"C'est d\u00e9licieux !\" Et c'est vrai. L'amour qu'on met dans la cuisine, \u00e7a se sent dans chaque bouch\u00e9e." },
+        { title: 'La recette du bonheur', emoji: '\uD83C\uDF1F', text: "Ce soir, {personnage} recopie la recette dans un nouveau carnet. Mais cette fois, l'ingr\u00e9dient myst\u00e8re est \u00e9crit bien lisiblement : \"RIRE. En mettre beaucoup.\" Et en dessous, {personnage} ajoute : \"Si le g\u00e2teau rate, c'est encore mieux. Parce qu'un g\u00e2teau rat\u00e9 partag\u00e9 avec des amis est mille fois meilleur qu'un g\u00e2teau parfait mang\u00e9 tout seul.\" {objet} est pos\u00e9 sur la table de nuit. Demain, {personnage} refera un g\u00e2teau. Et cette fois... il ratera peut-\u00eatre encore. Et ce sera encore g\u00e9nial. Bonne nuit, petit p\u00e2tissier !" }
+      ],
+      // Template 2 — Le parapluie qui faisait danser la pluie
+      [
+        { title: 'Le ciel tout gris', emoji: '\u26C8\uFE0F', text: "Quel temps horrible ! La pluie tombe sans s'arr\u00eater sur {lieu}. Plic ploc plic ploc. {personnage} regarde par la fen\u00eatre, le nez \u00e9cras\u00e9 contre la vitre. \"On ne peut rien faire quand il pleut\", soupire {personnage}. Les flaques d'eau grossissent dans la cour. Les escargots, eux, ont l'air ravis. Ils glissent lentement sur les feuilles mouill\u00e9es. Un escargot porte sa maison sur son dos, comme un petit camping-car vivant ! {objet} est pos\u00e9 sur la chaise." },
+        { title: "L'appel de Mamie", emoji: '\uD83D\uDCDE', text: "DRING ! C'est Mamie au t\u00e9l\u00e9phone. \"Mon petit, j'ai besoin d'aide ! J'ai laiss\u00e9 mon sac \u00e0 {lieu} et il pleut trop pour que j'y aille. Tu peux me le rapporter ?\" {personnage} n'a pas envie de sortir sous la pluie. Mais Mamie a besoin d'aide. Et quand quelqu'un a besoin d'aide, on y va ! {personnage} enfile ses bottes en caoutchouc, prend {objet} et le parapluie rouge, et ouvre la porte. SPLASH ! La pluie lui saute dessus." },
+        { title: 'Le parapluie chanteur', emoji: '\uD83C\uDFB5', text: "En marchant sous la pluie, {personnage} remarque quelque chose d'\u00e9trange. Chaque goutte qui tombe sur le parapluie fait une NOTE DE MUSIQUE diff\u00e9rente ! Pling, plong, pling ! C'est comme un petit piano de pluie. {personnage} tourne le parapluie \u00e0 gauche : la musique devient grave. \u00c0 droite : elle devient aigu\u00eb. En le faisant tournoyer : \u00e7a fait une vraie m\u00e9lodie ! \"Waouh !\" Des passants s'arr\u00eatent et \u00e9coutent, \u00e9merveill\u00e9s. La pluie joue de la musique !" },
+        { title: 'La danse des flaques', emoji: '\uD83D\uDC83', text: "Un petit gar\u00e7on s'approche et saute dans une flaque. SPLATCH ! La flaque \u00e9clabousse en rythme avec la musique du parapluie. Puis une petite fille saute dans une autre. SPLAATCH ! Bient\u00f4t, il y a six enfants qui sautent dans les flaques en rythme autour de {personnage}. C'est un BALLET de flaques ! Les passants applaudissent. Un chien saute aussi et \u00e9clabousse tout le monde. OUAF SPLATCH ! Tout le monde rit." },
+        { title: 'Le monsieur grognon', emoji: '\uD83D\uDE20', text: "\"ARR\u00caTEZ ce vacarme !\" Un homme en costume est furieux. Il est tout mouill\u00e9 et de tr\u00e8s mauvaise humeur. \"La pluie, c'est HORRIBLE. Il n'y a RIEN d'amusant l\u00e0-dedans !\" Les enfants s'arr\u00eatent de danser. Le silence tombe. {personnage} regarde l'homme. Il n'est pas vraiment m\u00e9chant. Il a l'air fatigu\u00e9 et triste. Ses chaussures sont tremp\u00e9es et son journal est tout mouill\u00e9. Quand on est malheureux, parfois on crie sur les autres. {personnage} a une id\u00e9e." },
+        { title: 'Le cadeau de la pluie', emoji: '\uD83C\uDF08', text: "{personnage} s'approche du monsieur grognon et lui tend le parapluie. \"Tenez, monsieur. \u00c9coutez.\" L'homme prend le parapluie, surpris. Et l\u00e0... il entend la musique. Pling, plong, pling. Ses yeux s'ouvrent tout grands. \"Mais... c'est magnifique !\" Sa bouche forme un sourire. C'est un tout petit sourire, mais c'est un d\u00e9but ! Il commence \u00e0 taper du pied en rythme. {objet} brille dans le sac de {personnage}." },
+        { title: 'Le concert sous la pluie', emoji: '\uD83C\uDFB6', text: "Le monsieur grognon n'est plus grognon du tout ! Il tourbillonne avec le parapluie musical et rit comme un enfant. \"\u00c7a fait vingt ans que je n'avais pas saut\u00e9 dans une flaque !\" crie-t-il. SPLATCH ! Il saute dans la plus grosse flaque de toutes. Son costume est tremp\u00e9 mais il s'en fiche ! Les enfants l'entourent et dansent avec lui. Un vrai concert de pluie \u00e0 {lieu} ! Des gens ouvrent leurs fen\u00eatres pour regarder et applaudir." },
+        { title: 'Le sac de Mamie', emoji: '\uD83D\uDC5C', text: "Oh ! {personnage} avait presque oubli\u00e9 ! Le sac de Mamie ! {personnage} court \u00e0 {lieu}, trouve le sac et revient en courant. Mais surprise : Mamie est l\u00e0, sous la pluie, en train de danser avec les autres ! \"Mamie ?! Mais tu avais dit que tu ne pouvais pas sortir !\" Mamie fait un clin d'oeil. \"J'ai entendu la musique depuis ma fen\u00eatre. Impossible de r\u00e9sister !\" Elle danse le twist sous la pluie. {objet} dans le sac semble danser aussi." },
+        { title: "L'arc-en-ciel", emoji: '\uD83C\uDF08', text: "Et tout \u00e0 coup, la pluie s'arr\u00eate. Un immense arc-en-ciel appara\u00eet dans le ciel. Sept couleurs magnifiques : rouge, orange, jaune, vert, bleu, indigo et violet. \"OOOOOH !\" font tous les danseurs en m\u00eame temps. Le monsieur en costume, les enfants, Mamie, le chien, tous l\u00e8vent les yeux. L'arc-en-ciel est si grand qu'il couvre tout {lieu}. Le parapluie musical joue une derni\u00e8re note, toute douce. {personnage} serre la main de Mamie." },
+        { title: 'Le sourire de la pluie', emoji: '\uD83C\uDF1F', text: "Ce soir, {personnage} est bien au chaud avec {objet}. Le monsieur grognon est pass\u00e9 dire merci. Il a offert un bonbon \u00e0 chaque enfant. \"Vous m'avez rappel\u00e9 quelque chose que j'avais oubli\u00e9\", a-t-il dit. \"La pluie n'est pas triste. C'est nous qui d\u00e9cidons si elle est triste ou joyeuse.\" {personnage} sourit sous la couette. Dehors, il pleut encore un peu. Plic, ploc. Mais maintenant, \u00e7a ressemble \u00e0 une berceuse. Bonne nuit, petit danseur de pluie !" }
+      ],
+      // Template 3 — Le jardin qui poussait \u00e0 l'envers
+      [
+        { title: 'Les graines myst\u00e8re', emoji: '\uD83C\uDF31', text: "{personnage} trouve un sachet de graines dans un coin de {lieu}. Sur le sachet, un message \u00e9trange : \"Attention ! Ces graines font pousser des choses SURPRENANTES.\" Pas de photo, pas de nom. Juste un petit dessin de point d'interrogation. {personnage} est trop curieux pour r\u00e9sister. Il prend une petite pelle, creuse un trou dans la terre et plante trois graines. Un peu d'eau par-dessus. Et hop, {objet} est pos\u00e9 \u00e0 c\u00f4t\u00e9 pour surveiller." },
+        { title: 'La pousse bizarre', emoji: '\uD83C\uDF3F', text: "Le lendemain, {personnage} court voir les graines et reste bouche b\u00e9e. Les plantes ont pouss\u00e9 pendant la nuit... mais \u00c0 L'ENVERS ! Les racines sont en haut, dans l'air, et les feuilles sont dans la terre. C'est compl\u00e8tement fou ! La premi\u00e8re plante a des feuilles bleues. La deuxi\u00e8me a des fleurs qui sentent... le chocolat ?! Et la troisi\u00e8me fait un bruit de clochette quand le vent souffle. Ding ding ! \"C'est de la magie !\" s'\u00e9crie {personnage}." },
+        { title: 'Les voisins curieux', emoji: '\uD83D\uDC40', text: "Les voisins viennent voir le jardin \u00e0 l'envers. \"C'est n'importe quoi !\" dit Monsieur Grumeau en croisant les bras. \"Les plantes ne poussent PAS comme \u00e7a.\" \"Il faut les arracher\", dit Madame Pointue. {personnage} a un peu peur. Tout le monde trouve les plantes bizarres. {objet} tombe par terre comme s'il \u00e9tait triste. Mais la petite Lina, trois ans, tire la manche de {personnage} : \"Moi je les trouve belles.\"" },
+        { title: 'Le matin des fruits', emoji: '\uD83C\uDF4E', text: "Le troisi\u00e8me jour, les plantes \u00e0 l'envers font des FRUITS ! Mais pas des fruits normaux. La plante bleue donne des pommes en forme d'\u00e9toiles. La plante chocolat donne des oranges qui ont le go\u00fbt de bonbons. Et la plante \u00e0 clochettes donne des cerises qui BRILLENT dans le noir. {personnage} en mange une. C'est absolument D\u00c9LICIEUX. Le go\u00fbt le plus incroyable du monde. {objet} se met \u00e0 briller aussi, comme les cerises." },
+        { title: 'Le secret des graines', emoji: '\uD83D\uDD2E', text: "Un vieil homme avec un chapeau de paille arrive au jardin. \"Ah, tu as trouv\u00e9 mes graines !\" C'est Monsieur Jardinier, qui avait perdu le sachet. \"Ces graines viennent d'un pays tr\u00e8s lointain o\u00f9 tout pousse \u00e0 l'envers. L\u00e0-bas, la pluie monte du sol vers le ciel et les arbres ont les racines en l'air. Les plantes ne sont pas bizarres. Elles sont juste... diff\u00e9rentes.\" {personnage} comprend quelque chose d'important. Diff\u00e9rent ne veut pas dire mauvais." },
+        { title: 'Le jardin attaqu\u00e9', emoji: '\uD83D\uDE31', text: "Le soir, catastrophe ! Quelqu'un a vers\u00e9 du d\u00e9sherbant sur les plantes \u00e0 l'envers pendant la nuit ! Les feuilles bleues deviennent grises. Les fleurs au chocolat se fanent. Les clochettes ne sonnent plus. {personnage} pleure en voyant le d\u00e9sastre. Qui a pu faire \u00e7a ? {objet} est au milieu des plantes ab\u00eem\u00e9es. {personnage} a le coeur bris\u00e9. M\u00eame la petite Lina pleure en voyant ses plantes pr\u00e9f\u00e9r\u00e9es mourir." },
+        { title: 'Le coupable inattendu', emoji: '\uD83D\uDE22', text: "Monsieur Grumeau arrive, la t\u00eate basse. \"C'est moi\", murmure-t-il. \"J'ai mis le d\u00e9sherbant. Je pensais que ces plantes \u00e9taient dangereuses parce qu'elles \u00e9taient diff\u00e9rentes. J'avais peur. Je suis d\u00e9sol\u00e9.\" {personnage} est en col\u00e8re, puis triste, puis... il voit les yeux de Monsieur Grumeau. Il a vraiment l'air malheureux. Parfois, les gens font de mauvaises choses parce qu'ils ont peur de ce qu'ils ne connaissent pas." },
+        { title: 'La r\u00e9surrection', emoji: '\u2728', text: "Monsieur Jardinier revient avec un arrosoir sp\u00e9cial. \"Cette eau vient du m\u00eame pays que les graines !\" Il arrose les plantes ab\u00eem\u00e9es. Au d\u00e9but, rien. Puis... les feuilles bleues retrouvent leur couleur ! Les fleurs au chocolat se redressent ! Les clochettes se remettent \u00e0 sonner ! DING DING DING ! Mais ce n'est pas tout : les plantes poussent ENCORE PLUS BELLES qu'avant. Et Monsieur Grumeau, bouche b\u00e9e, murmure : \"C'est... c'est magnifique.\" {objet} brille dans la lumi\u00e8re." },
+        { title: 'Le jardin de tout le monde', emoji: '\uD83C\uDF3B', text: "Monsieur Grumeau demande pardon \u00e0 {personnage} et aux plantes. Il propose de les aider \u00e0 faire un jardin pour tout le quartier \u00e0 {lieu}. Avec des plantes normales ET des plantes \u00e0 l'envers. Ensemble, ils creusent, plantent et arrosent. Monsieur Grumeau d\u00e9couvre qu'il ADORE jardiner. En automne, on plante les bulbes. Au printemps, on s\u00e8me. En \u00e9t\u00e9, on arrose. Chaque saison apporte ses surprises." },
+        { title: 'Le plus beau jardin', emoji: '\uD83C\uDF1F', text: "Des mois plus tard, le jardin de {lieu} est le plus beau du quartier. Des plantes normales c\u00f4toient des plantes \u00e0 l'envers. Des fraises poussent \u00e0 c\u00f4t\u00e9 de pommes en \u00e9toile. Des roses sentent bon \u00e0 c\u00f4t\u00e9 des fleurs au chocolat. Monsieur Grumeau est devenu le plus grand fan du jardin. {personnage} s'assoit le soir avec {objet} et \u00e9coute les clochettes. Ce qui est diff\u00e9rent n'est pas \u00e0 craindre. C'est \u00e0 d\u00e9couvrir, \u00e0 comprendre et \u00e0 aimer. Bonne nuit, petit jardinier !" }
+      ]
+    ]
+  },
+
+  magie: {
+    id: 'magie', name: 'Magie', emoji: '\u2728', color: '#8e44ad',
+    personnages: [
+      { name: 'Merlin le petit sorcier', emoji: '\uD83E\uDDD9' },
+      { name: 'F\u00e9e \u00c9toile', emoji: '\uD83E\uDDDA' },
+      { name: 'Dragon Flamme', emoji: '\uD83D\uDC09' },
+      { name: 'Licorne Arc-en-ciel', emoji: '\uD83E\uDD84' }
+    ],
+    lieux: [
+      { name: 'La for\u00eat enchant\u00e9e', emoji: '\uD83C\uDF32' },
+      { name: 'Le ch\u00e2teau magique', emoji: '\uD83C\uDFF0' },
+      { name: 'Le jardin des f\u00e9es', emoji: '\uD83C\uDF38' },
+      { name: 'La montagne des sorciers', emoji: '\u26F0\uFE0F' }
+    ],
+    objets: [
+      { name: 'La baguette magique', emoji: '\u2728' },
+      { name: 'Le chapeau ensorcell\u00e9', emoji: '\uD83C\uDFA9' },
+      { name: 'La potion brillante', emoji: '\uD83E\uDDEA' },
+      { name: 'Le grimoire ancien', emoji: '\uD83D\uDCD5' }
+    ],
+    stories: [
+      // Template 0 — Le m\u00e9chant sorcier qui \u00e9tait un b\u00e9b\u00e9
+      [
+        { title: "L'ombre dans la nuit", emoji: '\uD83C\uDF19', text: "BOUM ! BOUM ! BOUM ! De terribles coups r\u00e9sonnent \u00e0 la porte de {lieu}. Tout le monde tremble. \"C'est le Sorcier Noir !\" chuchote un lutin en se cachant sous un champignon. \"Il veut voler toute la magie du monde !\" {personnage} attrape {objet} et court voir. Dehors, une ombre gigantesque se dresse. Elle est noire comme la nuit et ses yeux brillent comme deux braises rouges. BOUM ! La porte tremble encore !" },
+        { title: 'Face au Sorcier Noir', emoji: '\uD83D\uDE08', text: "{personnage} ouvre la porte. Le Sorcier Noir est L\u00c0. Il est \u00e9norme, terrifiant, avec une cape qui flotte comme de la fum\u00e9e. \"DONNEZ-MOI TOUTE VOTRE MAGIE !\" hurle-t-il. Sa voix fait trembler les murs. Les feuilles des arbres de {lieu} deviennent grises de peur. Mais attendez... {personnage} remarque quelque chose. La voix du Sorcier Noir, sous les grondements... elle est toute fine. Comme une voix de b\u00e9b\u00e9." },
+        { title: 'Le duel magique', emoji: '\u2728', text: "{personnage} l\u00e8ve {objet} et lance un sortil\u00e8ge de lumi\u00e8re. FLASH ! Le Sorcier Noir recule en se prot\u00e9geant les yeux. Il lance une boule de fum\u00e9e noire. POUF ! {personnage} fait un bouclier de bulles de savon magiques. Les bulles absorbent la fum\u00e9e et deviennent des bulles arc-en-ciel. C'est magnifique ! Les couleurs naissent quand la lumi\u00e8re traverse les bulles, comme quand le soleil traverse la pluie et fait un arc-en-ciel." },
+        { title: 'Le sort rebondit', emoji: '\uD83D\uDCA5', text: "Le Sorcier Noir lance son plus puissant sortil\u00e8ge. ZAAAP ! Mais {objet} renvoie le sort ! Il touche le Sorcier Noir en plein sur le nez. POUF ! Et l\u00e0... L'ombre g\u00e9ante r\u00e9tr\u00e9cit, r\u00e9tr\u00e9cit, r\u00e9tr\u00e9cit. La cape tombe. Les yeux de braise s'\u00e9teignent. Et en dessous, il y a... un B\u00c9B\u00c9 sorcier ! Pas plus grand qu'un chaton ! Il a des petites joues rondes, un minuscule chapeau pointu et... il pleure ! \"OUIIIIIN !\"" },
+        { title: 'Le b\u00e9b\u00e9 sorcier', emoji: '\uD83D\uDC76', text: "Tout le monde est stup\u00e9fait. Le terrible Sorcier Noir est un B\u00c9B\u00c9 ! \"Mais... comment ?\" demande le lutin en sortant de sous son champignon. Le b\u00e9b\u00e9 sorcier pleure de plus en plus fort. Ses larmes font pousser des petites fleurs noires sur le sol. {personnage} s'approche doucement. Le b\u00e9b\u00e9 a l'air perdu, effray\u00e9 et seul. Il avait utilis\u00e9 un sortil\u00e8ge pour para\u00eetre grand et effrayant, parce qu'il voulait qu'on fasse attention \u00e0 lui." },
+        { title: 'La berceuse magique', emoji: '\uD83C\uDFB5', text: "{personnage} prend le b\u00e9b\u00e9 dans ses bras. \"Chut, chut, n'aie pas peur.\" Le b\u00e9b\u00e9 renifle. {personnage} commence \u00e0 chantonner une douce m\u00e9lodie. {objet} diffuse de petites \u00e9toiles qui tournent autour d'eux. La musique m\u00e9lange trois notes : do, mi, sol. Un accord parfait qui calme le coeur. Les petites fleurs noires sur le sol deviennent blanches, puis roses, puis dor\u00e9es. Le b\u00e9b\u00e9 arr\u00eate de pleurer et suce son pouce." },
+        { title: "L'histoire du b\u00e9b\u00e9", emoji: '\uD83D\uDCDA', text: "Le b\u00e9b\u00e9 s'appelle Pixel. Un vieux sortil\u00e8ge l'a transform\u00e9 en b\u00e9b\u00e9 alors qu'il \u00e9tait un sorcier normal. Depuis, personne ne le prend au s\u00e9rieux. \"Les grands sorciers riaient de moi\", raconte Pixel en reniflant (il sait parler, c'est un b\u00e9b\u00e9 magique !). \"Alors j'ai cr\u00e9\u00e9 l'illusion du Sorcier Noir pour qu'on m'\u00e9coute enfin.\" {personnage} comprend. Pixel ne voulait pas voler la magie. Il voulait juste qu'on le voie." },
+        { title: 'Le contre-sort', emoji: '\uD83E\uDDEA', text: "{personnage} cherche dans {objet} un moyen d'aider Pixel. Il faut m\u00e9langer trois ingr\u00e9dients : un \u00e9clat de rire sinc\u00e8re, une larme de joie et un rayon de lune. L'\u00e9clat de rire ? Le lutin raconte une blague tellement dr\u00f4le que tout le monde rit. La larme de joie ? Pixel pleure de bonheur quand {personnage} dit : \"Tu es notre ami.\" Le rayon de lune ? {objet} l'attrape au vol. ZING ! Pixel grandit d'un coup et redevient un jeune sorcier souriant." },
+        { title: 'La f\u00eate de bienvenue', emoji: '\uD83C\uDF89', text: "Tous les habitants de {lieu} organisent une f\u00eate pour Pixel. Les lutins accrochent des lanternes. Les f\u00e9es font danser des lucioles. Les champignons magiques jouent de la musique. Pixel n'en revient pas. \"C'est... pour moi ?\" Il pleure encore, mais cette fois, ce sont des larmes de bonheur qui font pousser des fleurs dor\u00e9es partout. {personnage} danse avec Pixel sous les \u00e9toiles. {objet} brille au rythme de la musique." },
+        { title: 'Le nouveau gardien', emoji: '\uD83C\uDF1F', text: "Ce soir, Pixel s'endort dans une petite maison que les lutins lui ont construite \u00e0 {lieu}. Il n'est plus seul. Le terrible Sorcier Noir n'existe plus. \u00c0 la place, il y a Pixel, le sorcier des fleurs dor\u00e9es, qui fait pousser des fleurs \u00e0 chaque fois qu'il est heureux. {personnage} range {objet} et sourit. Sous chaque m\u00e9chant, il y a parfois quelqu'un qui a juste besoin d'amour. Bonne nuit, petit sorcier au grand coeur !" }
+      ],
+      // Template 1 — La potion de couleurs m\u00e9lang\u00e9es
+      [
+        { title: 'Le matin sans couleurs', emoji: '\uD83D\uDDA4', text: "Ce matin, \u00e0 {lieu}, catastrophe ! Toutes les couleurs sont M\u00c9LANG\u00c9ES ! Le ciel est vert, l'herbe est bleue, les fleurs sont noires et les nuages sont rouges. Les oiseaux chantent des notes \u00e0 l'envers. Tout est sens dessus dessous. {personnage} se frotte les yeux. Non, ce n'est pas un r\u00eave ! Un petit lutin arrive en courant : \"Quelqu'un a renvers\u00e9 la Grande Potion des Couleurs dans le lac magique cette nuit ! Tout est m\u00e9lang\u00e9 !\"" },
+        { title: 'La qu\u00eate des couleurs', emoji: '\uD83C\uDFA8', text: "{personnage} prend {objet} et part r\u00e9parer le d\u00e9sastre. Mais comment remettre les couleurs \u00e0 leur place ? Le vieux hibou sage de {lieu} explique : \"Tu dois retrouver les trois couleurs de base : le rouge, le bleu et le jaune. Avec ces trois couleurs, on peut fabriquer TOUTES les autres. M\u00e9lange le rouge et le jaune, tu obtiens l'orange. M\u00e9lange le bleu et le jaune, tu obtiens le vert. M\u00e9lange le rouge et le bleu, tu obtiens le violet.\"" },
+        { title: 'Le rouge perdu', emoji: '\u2764\uFE0F', text: "{personnage} part chercher le rouge. {objet} pointe vers une grotte sombre. \u00c0 l'int\u00e9rieur, le rouge est gard\u00e9 par un dragon ! Mais ce n'est pas un vrai dragon. C'est un b\u00e9b\u00e9 dragon en papier qui fait semblant d'\u00eatre terrifiant. \"GRRRR ! Le rouge est \u00e0 MOI !\" {personnage} rit. \"Pourquoi tu veux le rouge, petit dragon ?\" \"Parce que c'est la couleur du feu et je suis un dragon. Sans rouge, je ne peux pas cracher de flammes.\" Le dragon montre ses flammes bleues. C'est bizarre mais joli !" },
+        { title: 'Le march\u00e9 avec le dragon', emoji: '\uD83E\uDD1D', text: "{personnage} a une id\u00e9e. \"Si tu me donnes le rouge, je te promets que tu auras DU rouge. Pas TOUT le rouge, mais assez pour tes flammes. D'accord ?\" Le dragon r\u00e9fl\u00e9chit. \"Et tu me laisseras un peu d'orange aussi ? Orange, c'est rouge et jaune, c'est la couleur du coucher de soleil. J'adore les couchers de soleil.\" \"March\u00e9 conclu !\" Ils se serrent la patte et la main. Le rouge revient, chaud et brillant. {objet} l'absorbe." },
+        { title: 'Le bleu vol\u00e9', emoji: '\uD83D\uDCA7', text: "Le bleu, lui, a \u00e9t\u00e9 vol\u00e9 par les sir\u00e8nes du lac ! Elles nagent dans l'eau verte (qui devrait \u00eatre bleue) et refusent de rendre la couleur. \"Le bleu est trop beau pour le partager !\" chante la reine sir\u00e8ne. {personnage} est emb\u00eat\u00e9. Comment convaincre des sir\u00e8nes ? On ne peut pas les forcer. {objet} vibre et projette une image : le ciel sans bleu. Les sir\u00e8nes voient le ciel vert et font la grimace. \"Beurk, le ciel vert c'est moche !\"" },
+        { title: 'La n\u00e9gociation bleue', emoji: '\uD83C\uDF0A', text: "\"Si vous rendez le bleu\", dit {personnage}, \"le ciel redeviendra bleu, le lac aussi, et vous pourrez nager dans de l'eau bleue sous un ciel bleu. Deux bleus pour le prix d'un !\" Les sir\u00e8nes r\u00e9fl\u00e9chissent en comptant sur leurs doigts. Un bleu... deux bleus... \"MARCH\u00c9 CONCLU !\" Le bleu jaillit du lac et {objet} l'attrape. Maintenant, {personnage} a le rouge et le bleu. Il ne manque plus que le jaune. Et le jaune, c'est la couleur du soleil !" },
+        { title: 'Le jaune dans le sol', emoji: '\u2B50', text: "O\u00f9 est le jaune ? {objet} pointe vers... le sol ! Le jaune s'est enfoui sous terre comme une taupe. {personnage} creuse et trouve une bulle jaune qui tremble. \"Pourquoi tu te caches ?\" demande {personnage}. \"Parce que quand les couleurs se sont m\u00e9lang\u00e9es, tout le monde m'a accus\u00e9 ! Ils ont dit : c'est ta faute, tu es trop vif, tu d\u00e9ranges !\" La bulle jaune pleure des larmes dor\u00e9es. Personne ne devrait avoir honte de ce qu'il est." },
+        { title: 'Le retour du jaune', emoji: '\uD83D\uDCA1', text: "{personnage} prend la bulle jaune dans ses mains. \"Tu ne d\u00e9ranges personne. Sans toi, il n'y a pas de soleil, pas de tournesols, pas d'\u00e9toiles, pas de sable chaud, pas de sourires dor\u00e9s. Le monde a BESOIN de toi.\" La bulle jaune brille de plus en plus fort. Elle gonfle, gonfle et explose de lumi\u00e8re ! PAOUF ! Le jaune revient partout. {objet} contient maintenant les trois couleurs de base : rouge, bleu, jaune. Il brille comme un arc-en-ciel." },
+        { title: 'Le grand m\u00e9lange', emoji: '\uD83C\uDF08', text: "{personnage} l\u00e8ve {objet} au centre de {lieu} et lib\u00e8re les trois couleurs ensemble. WHOUUUUSH ! C'est une explosion de lumi\u00e8re ! Le rouge et le jaune dansent et font de l'orange. Le bleu et le jaune virevoltent et font du vert. Le rouge et le bleu s'enlacent et font du violet. Toutes les couleurs retrouvent leur place. Le ciel redevient bleu, l'herbe redevient verte, les fleurs retrouvent mille teintes. Les oiseaux chantent \u00e0 l'endroit." },
+        { title: 'Le monde en couleurs', emoji: '\uD83C\uDF1F', text: "Ce soir, {lieu} est le plus beau du monde. Le coucher de soleil m\u00eale l'orange du dragon et le bleu des sir\u00e8nes. Les \u00e9toiles jaunes brillent fi\u00e8rement. {personnage} s'assoit et regarde. Le dragon vient admirer le coucher de soleil. Les sir\u00e8nes nagent dans l'eau bleue. La bulle jaune brille l\u00e0-haut. {objet} repose sur les genoux de {personnage}. Chaque couleur est unique et pr\u00e9cieuse. C'est en se m\u00e9langeant qu'elles cr\u00e9ent les plus belles choses. Bonne nuit, petit artiste magique !" }
+      ],
+      // Template 2 — La musique qui r\u00e9veillait les pierres
+      [
+        { title: 'Le silence \u00e9trange', emoji: '\uD83D\uDD07', text: "Quelque chose de tr\u00e8s bizarre se passe \u00e0 {lieu}. Tout est devenu SILENCIEUX. Pas un son. Les oiseaux ouvrent le bec mais aucun chant ne sort. Le vent souffle mais on n'entend rien. M\u00eame les pas de {personnage} ne font pas de bruit sur le sol. C'est comme si quelqu'un avait appuy\u00e9 sur le bouton \"muet\" du monde entier ! {personnage} tape dans ses mains. Rien. Pas un clap. {objet} vibre en silence." },
+        { title: 'Les pierres qui parlent', emoji: '\uD83E\uDEA8', text: "{personnage} remarque alors que les pierres du chemin ont des VISAGES. Des petits yeux, des petites bouches. Et elles bougent les l\u00e8vres ! Mais elles non plus ne font pas de son. {personnage} s'approche d'une grosse pierre. Elle essaie de dire quelque chose. On dirait... \"A...aide...nous...\" Les pierres sont vivantes et elles souffrent du silence ! L'une d'elle montre du menton la direction d'une grotte sombre au bout de {lieu}." },
+        { title: 'La grotte de cristal', emoji: '\uD83D\uDD2E', text: "Dans la grotte, {personnage} d\u00e9couvre un instrument de musique \u00e9norme : un xylophone fait de cristaux. Chaque cristal est une note. Mais tous les cristaux sont \u00e9teints, gris et fissur\u00e9s. \u00c0 c\u00f4t\u00e9, un petit panneau dit : \"La Musique du Monde. Ne fonctionne que si toutes les notes jouent ensemble.\" Si une note manque, pas de son ! {objet} \u00e9claire les cristaux un par un. Il y en a sept. Comme les sept notes : do, r\u00e9, mi, fa, sol, la, si." },
+        { title: 'Les notes dispers\u00e9es', emoji: '\uD83C\uDFB5', text: "{personnage} comprend ! Les sept notes de musique se sont \u00e9chapp\u00e9es du xylophone et se sont cach\u00e9es dans {lieu}. Il faut les retrouver ! {objet} vibre d'un rythme sp\u00e9cial pour chaque note. La note \"do\" est cach\u00e9e dans un tronc d'arbre creux. La note \"r\u00e9\" dort sous un champignon g\u00e9ant. \"Mi\" se balance sur une toile d'araign\u00e9e. Chaque note est un petit \u00eatre lumineux et tremblant. \"On avait peur de jouer faux\", murmure Do." },
+        { title: 'La note qui refuse', emoji: '\uD83D\uDE22', text: "{personnage} retrouve six notes sur sept. Mais la septi\u00e8me, \"si\", refuse de revenir. \"Je suis la note la plus aigu\u00eb et tout le monde dit que je suis trop per\u00e7ante. Je ne veux plus jouer !\" Si s'est enferm\u00e9e tout en haut d'un arbre \u00e9norme. {personnage} grimpe branche par branche. L'arbre est haut comme dix maisons. Enfin, {personnage} trouve Si, toute recroquevill\u00e9e dans un nid d'oiseau vide." },
+        { title: 'La m\u00e9lodie incompl\u00e8te', emoji: '\uD83C\uDFB6', text: "\"\u00c9coute\", dit {personnage}. Il place les six notes dans le xylophone. Do, r\u00e9, mi, fa, sol, la jouent ensemble. C'est beau, mais il manque quelque chose. La m\u00e9lodie est incompl\u00e8te. Comme un g\u00e2teau sans la cerise, comme un arc-en-ciel sans le violet. \"Tu entends ?\" dit {personnage} \u00e0 Si. \"Sans toi, la musique est triste. Chaque note est indispensable. M\u00eame les plus aigu\u00ebs.\" Si h\u00e9site, les yeux brillants." },
+        { title: 'Le retour de Si', emoji: '\u2764\uFE0F', text: "Si descend de l'arbre, tout doucement. Les six autres notes l'accueillent avec des vrombissements joyeux. \"Tu nous as manqu\u00e9 !\" dit Do. \"Sans toi, on ne peut pas faire de belles m\u00e9lodies !\" Si rougit. {personnage} la pose d\u00e9licatement sur le dernier cristal du xylophone. SIIIIIING ! La note r\u00e9sonne, pure et claire. Les six autres vibrent en harmonie. {objet} brille de toutes les couleurs en m\u00eame temps." },
+        { title: 'Le monde chante \u00e0 nouveau', emoji: '\uD83C\uDF0A', text: "WHOUUUUUSH ! Le son explose dans {lieu} ! Les oiseaux chantent \u00e0 tue-t\u00eate. Le vent siffle dans les branches. Les feuilles crissent. L'eau du ruisseau glougloutonne. Les pierres du chemin poussent un cri de joie : \"HOURRA !\" Elles chantent, elles rient, elles se racontent des blagues de cailloux. Les sons du monde sont revenus et ils sont MAGNIFIQUES. {personnage} entend m\u00eame son propre coeur battre : boum boum boum. C'est le plus beau son du monde." },
+        { title: 'Le concert des pierres', emoji: '\uD83C\uDFB6', text: "Les pierres organisent un concert pour remercier {personnage}. Elles chantent en choeur avec des voix toutes graves et vibrantes. Les oiseaux font les aigus. Le vent joue de la fl\u00fbte dans les branches. L'eau du ruisseau tape le rythme : ploc ploc ploc. Les sept notes dansent au-dessus du xylophone de cristal en faisant des arabesques lumineuses. {objet} projette des formes qui bougent avec la musique. C'est le plus beau spectacle de {lieu}." },
+        { title: 'La berceuse du monde', emoji: '\uD83C\uDF19', text: "Ce soir, tout {lieu} s'endort en musique. Les pierres fredonnent une berceuse douce. Les notes du xylophone jouent tout bas : do, r\u00e9, mi... si. Si joue sa note avec fiert\u00e9, doucement, juste au bon moment. {personnage} est allong\u00e9 sous les \u00e9toiles avec {objet}. Le silence total est vide et triste. Mais le silence ENTRE les notes, celui qui laisse chaque son respirer, c'est la plus belle musique du monde. Bonne nuit, petit musicien magique !" }
+      ],
+      // Template 3 — Le sort qui transformait en animal
+      [
+        { title: 'Le sort qui d\u00e9rape', emoji: '\uD83D\uDCA5', text: "{personnage} pratique un nouveau sort \u00e0 {lieu}. C'est un sort pour faire pousser les fleurs plus vite. {personnage} pointe {objet} vers une marguerite et prononce la formule : \"Floris Grandis !\" PAOUF ! Mais au lieu de faire pousser la fleur... {personnage} se transforme en GRENOUILLE ! Une petite grenouille verte avec de grands yeux. \"CROAA ?!\" coasse {personnage}, stup\u00e9fait. {objet} tombe par terre, trop gros pour des pattes de grenouille." },
+        { title: "Le monde vu d'en bas", emoji: '\uD83D\uDC38', text: "Le monde est compl\u00e8tement diff\u00e9rent vu d'en bas ! Les brins d'herbe sont grands comme des arbres. Les fourmis sont grosses comme des chiens. Une coccinelle passe et elle est \u00e9norme ! {personnage} essaie de parler mais seuls des \"CROAA\" sortent. Comment redevenir normal ? {objet} est l\u00e0-bas, \u00e0 trois m\u00e8tres. Mais trois m\u00e8tres pour une grenouille, c'est comme un kilom\u00e8tre ! Et puis... un CHAT approche. Un \u00e9norme chat avec de gros yeux verts. Il regarde {personnage} et se l\u00e8che les babines." },
+        { title: 'La fuite', emoji: '\uD83C\uDFC3', text: "{personnage} saute aussi vite que possible. HOP HOP HOP ! Les pattes de grenouille sont super puissantes. Chaque saut fait un m\u00e8tre ! Le chat court derri\u00e8re. MIAOU ! {personnage} plonge dans une flaque. PLOUF ! Sous l'eau, la grenouille respire par sa peau. C'est vrai : les grenouilles respirent aussi bien par leur peau que par leurs poumons. Le chat d\u00e9teste l'eau et s'en va. OUF ! {personnage} sort de la flaque, tout mouill\u00e9 mais vivant." },
+        { title: 'Les amis du marais', emoji: '\uD83D\uDC1B', text: "Pr\u00e8s de la flaque, {personnage} rencontre Gustave le scarab\u00e9e, Rosalie la libellule et Hector l'escargot. \"Oh, une nouvelle grenouille !\" dit Gustave. {personnage} essaie d'expliquer : \"CROAA CROAA CROAA !\" Les insectes ne comprennent rien mais ils sont tr\u00e8s gentils. Rosalie bat ses quatre ailes transparentes et dit : \"Viens, on va te montrer notre monde.\" Les libellules sont les plus anciens insectes volants du monde. Elles existaient avant les dinosaures !" },
+        { title: 'Le monde secret', emoji: '\uD83C\uDF3F', text: "Gustave, Rosalie et Hector emm\u00e8nent {personnage} dans un monde minuscule et merveilleux. Sous les feuilles, il y a des villes de fourmis avec des routes et des carrefours. Dans les fleurs, les abeilles fabriquent du miel. Dans le bois mort, les scarab\u00e9es construisent des galeries. C'est un monde entier que {personnage} n'avait JAMAIS vu ! Si petit et pourtant si riche. {personnage} est \u00e9merveill\u00e9. La nature est pleine de merveilles invisibles." },
+        { title: "Le cycle de l'eau", emoji: '\uD83D\uDCA7', text: "Il commence \u00e0 pleuvoir. Les gouttes sont \u00e9normes pour une grenouille ! SPLASH ! SPLASH ! Hector l'escargot adore la pluie. Il sort ses cornes et danse. \"La pluie tombe du ciel, coule dans la terre, rejoint la rivi\u00e8re, va dans la mer, s'\u00e9vapore dans les nuages et retombe en pluie. C'est un grand cercle qui ne s'arr\u00eate jamais\", explique Rosalie. {personnage} observe une goutte tomber sur une feuille et glisser jusqu'au sol. M\u00eame la pluie est magique quand on la regarde de pr\u00e8s." },
+        { title: "L'id\u00e9e de la chenille", emoji: '\uD83D\uDC1B', text: "Une vieille chenille sage s'approche de {personnage}. \"Je sais que tu n'es pas une vraie grenouille. Tu es un magicien transform\u00e9.\" {personnage} \u00e9carquille les yeux. \"CROAA ?!\" \"Je le sais parce que, moi aussi, je me transforme. Bient\u00f4t je deviendrai un papillon. La transformation, \u00e7a me conna\u00eet.\" La chenille sourit. \"Ton objet magique est l\u00e0-bas. Si tes nouveaux amis t'aident \u00e0 le r\u00e9cup\u00e9rer, tu pourras te retransformer.\" {personnage} regarde ses amis insectes." },
+        { title: "L'op\u00e9ration sauvetage", emoji: '\uD83D\uDCAA', text: "Gustave, Rosalie, Hector et {personnage} forment une \u00e9quipe. Rosalie vole en \u00e9claireur et rep\u00e8re {objet} pr\u00e8s du chat endormi. Gustave creuse un tunnel sous la terre pour s'approcher. Hector laisse une tra\u00een\u00e9e gluante pour que {personnage} ne glisse pas. Et {personnage} saute par-dessus le chat endormi avec ses super-pattes de grenouille. HOP ! Il atterrit pile sur {objet}. Le chat ouvre un oeil... et se rendort. FIOU !" },
+        { title: 'La retransformation', emoji: '\u2728', text: "{personnage} touche {objet} et prononce la formule \u00e0 l'envers : \"Sidnarg Sirolg !\" PAOUF ! {personnage} grandit, grandit et redevient normal ! C'est g\u00e9nial de retrouver ses mains et ses pieds. Mais... {personnage} regarde en bas. Gustave, Rosalie et Hector sont tout petits maintenant. \"Vous allez me manquer\", dit {personnage}. \"On sera toujours l\u00e0\", dit Rosalie. \"Il suffit de regarder sous une feuille.\"" },
+        { title: 'Les yeux nouveaux', emoji: '\uD83C\uDF1F', text: "Ce soir, {personnage} se prom\u00e8ne \u00e0 {lieu} avec {objet}. Mais tout est diff\u00e9rent maintenant. {personnage} s'arr\u00eate pour regarder les fourmis travailler. Il observe une libellule briller au soleil. Il \u00e9coute un escargot glisser sur une feuille. Le monde minuscule est l\u00e0, partout, plein de vie et de beaut\u00e9s. La chenille s'est transform\u00e9e en un magnifique papillon bleu qui vient se poser sur la main de {personnage}. Le sort \u00e9tait une erreur, mais les d\u00e9couvertes qu'il a apport\u00e9es sont un tr\u00e9sor. Bonne nuit, petit explorateur du monde invisible !" }
+      ]
+    ]
+  },
+
+  robots: {
+    id: 'robots', name: 'Robots', emoji: '\uD83E\uDD16', color: '#e67e22',
+    personnages: [
+      { name: 'Robot Bip', emoji: '\uD83E\uDD16' },
+      { name: 'Robote Zina', emoji: '\uD83E\uDDBE' },
+      { name: 'Mini-Bot', emoji: '\uD83D\uDD29' },
+      { name: 'M\u00e9ca le grand robot', emoji: '\uD83E\uDDBF' }
+    ],
+    lieux: [
+      { name: 'La ville du futur', emoji: '\uD83C\uDFD9\uFE0F' },
+      { name: "L'usine des robots", emoji: '\uD83C\uDFED' },
+      { name: 'Le laboratoire secret', emoji: '\uD83D\uDD2C' },
+      { name: 'La plan\u00e8te m\u00e9canique', emoji: '\u2699\uFE0F' }
+    ],
+    objets: [
+      { name: 'La cl\u00e9 \u00e0 molette magique', emoji: '\uD83D\uDD27' },
+      { name: 'Le bouton rouge', emoji: '\uD83D\uDD34' },
+      { name: "L'engrenage dor\u00e9", emoji: '\u2699\uFE0F' },
+      { name: "La pile d'\u00e9nergie", emoji: '\uD83D\uDD0B' }
+    ],
+    stories: [
+      // Template 0 — Le robot qui avait peur du noir
+      [
+        { title: 'Bip boup, bonne nuit', emoji: '\uD83C\uDF19', text: "C'est l'heure de dormir \u00e0 {lieu}. Les lumi\u00e8res s'\u00e9teignent une par une. Clic, clic, clic. Tous les robots vont en mode veille. Mais {personnage} ne veut pas dormir. Pourquoi ? Parce qu'il a PEUR DU NOIR. Quand les lumi\u00e8res s'\u00e9teignent, les ombres ressemblent \u00e0 des monstres. Les machines font des bruits bizarres : crrrr, tsssss, clang ! {personnage} serre {objet} tr\u00e8s fort. Ses yeux clignotent de peur : rouge, rouge, rouge." },
+        { title: 'La nuit est longue', emoji: '\uD83D\uDC40', text: "{personnage} essaie de rester \u00e9veill\u00e9 toute la nuit. Les couloirs de {lieu} sont sombres et effrayants. Une ombre passe ! {personnage} sursaute : \"BIIP !\" Mais ce n'est qu'un petit robot-souris qui cherche des vis perdues. Un bruit de cha\u00eene ! Ce n'est que le chauffage. Un grondement ! C'est juste le frigo de la cantine. Tout a une explication, mais dans le noir, l'imagination invente des monstres partout." },
+        { title: 'Le robot lumineux', emoji: '\uD83D\uDCA1', text: "Le matin arrive enfin. {personnage} est \u00e9puis\u00e9. Ses circuits surchauffent de fatigue. Bzzzzz ! Il s'endort en plein milieu du petit-d\u00e9jeuner d'huile. SPLASH ! Son nez tombe dans le bol. Les autres robots rient. \"Pourquoi tu es si fatigu\u00e9 ?\" demande Zap, un petit robot jaune. {personnage} a honte d'avouer. \"Un robot ne devrait pas avoir peur du noir\", pense-t-il. C'est faux ! Tout le monde peut avoir peur, m\u00eame les robots." },
+        { title: 'Le secret de Zap', emoji: '\uD83E\uDD2B', text: "Zap s'approche de {personnage}. \"Moi aussi j'avais peur du noir\", chuchote-t-il. \"QUOI ? Toi ?\" Zap hoche la t\u00eate. \"Jusqu'\u00e0 ce que je d\u00e9couvre quelque chose de g\u00e9nial dans le noir. Viens ce soir, je te montrerai.\" {personnage} h\u00e9site. Retourner dans le noir ? Rien que d'y penser, ses engrenages se crispent. Mais Zap a l'air sinc\u00e8re. Et {objet} vibre doucement, comme pour encourager. \"D'accord\", murmure {personnage}." },
+        { title: "L'exp\u00e9dition nocturne", emoji: '\uD83D\uDD26', text: "Ce soir, Zap emm\u00e8ne {personnage} dans les couloirs sombres de {lieu}. Le coeur m\u00e9canique de {personnage} fait tic-tac tr\u00e8s vite. Zap murmure : \"Ferme les yeux et \u00c9COUTE.\" {personnage} ferme les yeux (c'est encore plus noir !). Et l\u00e0... il entend des sons qu'il n'avait jamais remarqu\u00e9s. Le ronronnement doux des machines. Le tic-tac r\u00e9gulier de l'horloge. Le murmure du vent dans les conduits. C'est... paisible." },
+        { title: 'Les lucioles m\u00e9caniques', emoji: '\u2B50', text: "Zap conduit {personnage} sur le toit de {lieu}. Et l\u00e0, SURPRISE ! Des dizaines de petites lucioles m\u00e9caniques dansent dans le ciel noir ! Elles clignotent : vert, bleu, dor\u00e9, rose. C'est MAGNIFIQUE. \"Elles ne sortent que la nuit\", explique Zap. \"Elles fonctionnent \u00e0 l'\u00e9nergie de la lune. Si tu restes dans la lumi\u00e8re, tu ne les vois jamais.\" {personnage} est bouche b\u00e9e. Le noir cache des merveilles qu'on ne peut voir que dans l'obscurit\u00e9 !" },
+        { title: 'Le monstre r\u00e9v\u00e9l\u00e9', emoji: '\uD83D\uDE31', text: "Soudain, un \u00c9NORME bruit ! CRAAAANG ! Une ombre gigantesque appara\u00eet derri\u00e8re les lucioles. {personnage} attrape Zap. \"UN MONSTRE !\" Mais Zap \u00e9clate de rire. \"Regarde bien !\" {objet} \u00e9claire l'ombre et... c'est le vieux robot concierge ! Il r\u00e9pare une antenne sur le toit. Son ombre est rendue g\u00e9ante par la lune derri\u00e8re lui. \"Bonsoir les petits ! Vous regardez mes lucioles ?\" L'ombre terrifiante \u00e9tait en fait un gentil papy robot." },
+        { title: 'Le concierge raconte', emoji: '\uD83C\uDF19', text: "Le vieux concierge s'assoit avec eux. \"Moi aussi j'avais peur du noir quand j'\u00e9tais petit\", dit-il. \"Mais tu sais quoi ? Le noir, c'est juste l'absence de lumi\u00e8re. Ce n'est pas un ennemi. C'est comme le silence : il n'y a rien de dangereux dedans, juste du calme.\" Il explique que les yeux s'habituent au noir au bout de quelques minutes. C'est vrai ! {personnage} voit de mieux en mieux sans lumi\u00e8re. Les \u00e9toiles brillent comme des petites lampes naturelles." },
+        { title: "L'invention lumineuse", emoji: '\uD83D\uDD27', text: "{personnage} a une id\u00e9e g\u00e9niale ! Avec {objet}, il fabrique une petite veilleuse en forme d'\u00e9toile. Elle projette des lucioles m\u00e9caniques sur les murs. Pas trop de lumi\u00e8re, juste assez pour rassurer. \"C'est comme avoir un petit morceau de nuit magique dans sa chambre !\" dit {personnage}. {objet} tourne doucement en projetant des formes. Zap en veut une aussi. Et le concierge. Et bient\u00f4t, toute {lieu} !" },
+        { title: 'Bonne nuit, brave robot', emoji: '\uD83C\uDF1F', text: "Ce soir, {personnage} se couche avec sa veilleuse-\u00e9toile. Les lucioles dansent doucement sur les murs. Le noir n'est plus effrayant. C'est doux, calme et plein de jolies choses cach\u00e9es. Sous la couverture, {objet} repose \u00e0 c\u00f4t\u00e9 de {personnage}. Dehors, les vraies lucioles m\u00e9caniques brillent sur le toit. Le vieux concierge siffle une chanson. Zap dort d\u00e9j\u00e0, un sourire aux l\u00e8vres. Le noir n'est pas un ennemi. C'est un ami timide qui cache ses plus beaux tr\u00e9sors. Bonne nuit, brave petit robot !" }
+      ],
+      // Template 1 — Le robot qui recyclait tout
+      [
+        { title: 'La montagne de d\u00e9chets', emoji: '\uD83D\uDDD1\uFE0F', text: "{personnage} se prom\u00e8ne \u00e0 {lieu} quand il d\u00e9couvre quelque chose de terrible : une MONTAGNE de d\u00e9chets ! Des vieux tuyaux rouill\u00e9s, des fils emm\u00eal\u00e9s, des \u00e9crans cass\u00e9s et des bo\u00eetes vides. Les robots jettent tout n'importe o\u00f9. \"Beurk !\" dit {personnage}. L'odeur d'huile br\u00fbl\u00e9e pique le nez. Les petits oiseaux m\u00e9caniques ne chantent plus. M\u00eame les fleurs en m\u00e9tal sont couvertes de poussi\u00e8re. {objet} clignote comme un signal d'alarme." },
+        { title: "L'id\u00e9e du tri", emoji: '\uD83D\uDCA1', text: "{personnage} r\u00e9fl\u00e9chit. \"Si on triait les d\u00e9chets, on pourrait r\u00e9utiliser plein de choses !\" Le m\u00e9tal peut \u00eatre fondu pour faire de nouvelles pi\u00e8ces. Le plastique peut devenir de nouveaux bo\u00eetiers. Les circuits peuvent \u00eatre r\u00e9par\u00e9s. C'est \u00e7a, le RECYCLAGE ! Transformer les vieux trucs en trucs neufs au lieu de tout jeter. {personnage} prend {objet} et commence \u00e0 trier. Les m\u00e9taux dans la poubelle bleue, les circuits dans la verte, le reste dans la jaune." },
+        { title: 'Les moqueries', emoji: '\uD83D\uDE12', text: "Les autres robots passent et se moquent. \"Pourquoi tu fouilles dans les poubelles ? C'est sale et c'est nul !\" Un gros robot, Crank, rit tr\u00e8s fort : \"HA HA HA ! Le petit robot poubelle !\" \u00c7a fait mal. {personnage} a envie d'arr\u00eater. Mais en regardant la montagne de d\u00e9chets, il sait que c'est important. {objet} se met \u00e0 briller pour donner du courage. Faire ce qui est bien, m\u00eame quand les autres rient, c'est \u00e7a le vrai courage." },
+        { title: 'La panne de Crank', emoji: '\u26A1', text: "Le lendemain, CATASTROPHE ! Crank, le gros robot moqueur, tombe en panne ! Son moteur fait des bruits horribles : CRRRRK CRRRRK CRRRRK ! Il a besoin d'un engrenage de taille 7 pour \u00eatre r\u00e9par\u00e9. Mais il n'y en a plus en stock \u00e0 {lieu}. Il faudrait des semaines pour en commander un. Crank est d\u00e9sesp\u00e9r\u00e9. \"Sans moteur, je ne peux plus bouger !\" Il est coinc\u00e9, immobile, au milieu du couloir." },
+        { title: "L'engrenage retrouv\u00e9", emoji: '\u2699\uFE0F', text: "{personnage} va voir sa collection de pi\u00e8ces tri\u00e9es. Il cherche, cherche... et trouve ! Un engrenage de taille 7, en parfait \u00e9tat, r\u00e9cup\u00e9r\u00e9 dans la montagne de d\u00e9chets ! Quelqu'un l'avait jet\u00e9 alors qu'il marchait encore. {personnage} court vers Crank avec la pi\u00e8ce et {objet}. \"Attends, je vais te r\u00e9parer !\" Crank n'en revient pas. \"Toi ? Tu m'aides ? Apr\u00e8s que je me suis moqu\u00e9 de toi ?\" {personnage} sourit. \"Bien s\u00fbr. C'est \u00e7a, les amis.\"" },
+        { title: 'La r\u00e9paration', emoji: '\uD83D\uDD27', text: "Avec {objet}, {personnage} installe l'engrenage dans le moteur de Crank. Un levier pour soulever le panneau. Un tournevis pour fixer la pi\u00e8ce. Les engrenages, ce sont des roues avec des dents qui s'embo\u00eetent les unes dans les autres. Quand un tourne, il fait tourner le suivant. C'est comme \u00e7a que les machines transmettent le mouvement. CLIC ! L'engrenage est en place. Crank d\u00e9marre son moteur. VROOOOM ! \u00c7a marche !" },
+        { title: 'Le changement de Crank', emoji: '\u2764\uFE0F', text: "Crank se l\u00e8ve et fait trois tours sur lui-m\u00eame de bonheur. \"YOUHOU ! Je remarche !\" Puis il s'arr\u00eate et regarde {personnage}. \"Merci. Et... pardon d'avoir \u00e9t\u00e9 m\u00e9chant. Tu avais raison pour le recyclage. Sans ta collection de pi\u00e8ces, je serais encore en panne.\" Crank rougit (ses joues m\u00e9talliques deviennent orange). \"Je veux t'aider \u00e0 trier les d\u00e9chets.\" {personnage} sourit si fort que ses diodes clignotent de joie." },
+        { title: "L'usine de recyclage", emoji: '\uD83C\uDFED', text: "Ensemble, {personnage} et Crank construisent une mini-usine de recyclage \u00e0 {lieu} ! Les vieilles pi\u00e8ces entrent d'un c\u00f4t\u00e9, et des pi\u00e8ces neuves sortent de l'autre. C'est magique ! {objet} sert de g\u00e9n\u00e9rateur d'\u00e9nergie pour la machine. Les autres robots viennent voir, curieux. \"Waouh, c'est g\u00e9nial !\" dit un petit robot. Bient\u00f4t, tout le monde apporte ses vieux trucs \u00e0 recycler. La montagne de d\u00e9chets r\u00e9tr\u00e9cit \u00e0 vue d'oeil." },
+        { title: 'La sculpture d\u00e9chets', emoji: '\uD83C\uDFA8', text: "Avec les derniers d\u00e9chets, {personnage} et Crank fabriquent une \u00c9NORME sculpture : un arbre m\u00e9canique fait de vieilles pi\u00e8ces ! Les branches sont des tuyaux, les feuilles sont des circuits, et le tronc est fait de plaques de m\u00e9tal. Au sommet, une ampoule brille comme un soleil. C'est la plus belle chose de tout {lieu}. \"Rien n'est jamais compl\u00e8tement inutile\", dit {personnage}. \"Il suffit d'imaginer une nouvelle vie pour les vieilles choses.\"" },
+        { title: 'Rien ne se perd', emoji: '\uD83C\uDF1F', text: "Ce soir, {lieu} est propre et beau. Plus de montagne de d\u00e9chets. \u00c0 la place, l'arbre m\u00e9canique brille sous les \u00e9toiles. {personnage} et Crank sont assis dessous avec {objet}. \"Tu sais\", dit Crank, \"je pensais que jeter c'\u00e9tait plus facile que recycler. Mais recycler, c'est tellement plus beau.\" {personnage} acquiesce. Rien ne se perd, tout se transforme. Un vieux d\u00e9chet peut devenir un tr\u00e9sor si on prend le temps de s'en occuper. Bonne nuit, petit robot \u00e9colo !" }
+      ],
+      // Template 2 — Le robot qui ne savait pas jouer
+      [
+        { title: 'Le robot s\u00e9rieux', emoji: '\uD83D\uDCCB', text: "{personnage} est le robot le plus s\u00e9rieux de {lieu}. Il range, il nettoie, il r\u00e9pare. Tout doit \u00eatre parfait. Ses engrenages tournent en rythme : tic, tac, tic, tac. Jamais un grain de poussi\u00e8re. Jamais un fil qui d\u00e9passe. Mais quand les autres robots jouent, {personnage} les regarde de loin sans comprendre. \"Jouer, \u00e7a ne sert \u00e0 rien\", dit-il. \"C'est du temps perdu.\" {objet} est toujours bien rang\u00e9 dans sa poche." },
+        { title: "L'invitation refus\u00e9e", emoji: '\uD83D\uDC4B', text: "Les petits robots Flip et Flap invitent {personnage} \u00e0 jouer. \"Viens faire une course avec nous !\" Flip fait des galipettes dans le couloir. Flap jongle avec des vis. CLING CLING CLING ! \"Non merci\", dit {personnage}. \"J'ai du travail.\" Flip et Flap repartent, un peu tristes. {personnage} retourne \u00e0 son rangement. Mais son coeur m\u00e9canique fait un dr\u00f4le de bruit. Pas tic-tac. Plut\u00f4t... cling. Comme s'il manquait quelque chose." },
+        { title: 'Le bug', emoji: '\u26A0\uFE0F', text: "Un jour, {personnage} se met \u00e0 BUGUER. Ses bras font n'importe quoi ! Le bras gauche range un tournevis dans le frigo. Le bras droit met du dentifrice sur une vis. Les jambes marchent en arri\u00e8re. \"ERREUR SYST\u00c8ME !\" clignote l'\u00e9cran sur sa poitrine. Le docteur robot l'examine. \"Hmm, ton programme de JOIE est d\u00e9sactiv\u00e9. Un robot qui ne joue jamais accumule de l'\u00e9nergie non utilis\u00e9e et \u00e7a fait buguer les circuits. Prescription : JOUER !\"" },
+        { title: 'Le premier essai', emoji: '\uD83C\uDFB2', text: "{personnage} doit jouer, sinon les bugs vont empirer. Mais il ne sait pas comment ! Flip et Flap essaient de l'aider. \"Attrape la balle !\" Flap lance une balle. {personnage} tend les bras et... la balle rebondit sur sa t\u00eate. BOING ! \"Lance-la maintenant !\" {personnage} lance la balle qui fait trois rebonds au plafond et tombe dans un pot de peinture. SPLASH ! Tout le monde est \u00e9clabousse de bleu. Oups." },
+        { title: 'Le rire interdit', emoji: '\uD83D\uDE02', text: "Et l\u00e0, quelque chose d'incroyable se passe. Flip a de la peinture bleue sur le nez. Flap en a sur les oreilles. {personnage} en a plein le ventre. C'est tellement ridicule que... {personnage} \u00c9CLATE DE RIRE ! \"HA HA HA BIP HA !\" C'est son PREMIER rire ! Les circuits de joie s'allument d'un coup. Les bugs disparaissent. {objet} se met \u00e0 tournoyer tout seul. \"Tu as ri ! Tu as RI !\" crient Flip et Flap en sautant de joie." },
+        { title: 'Le jour du jeu', emoji: '\uD83C\uDFAE', text: "\u00c0 partir de ce jour, {personnage} apprend \u00e0 jouer un peu chaque jour. Cache-cache dans {lieu} : les robots se cachent derri\u00e8re les machines. \"Coucou, je te vois !\" Colin-maillard : {personnage} a un bandeau sur les yeux et attrape... une poubelle. \"Ce n'est pas un robot, \u00e7a !\" Construction de tours : qui fait la plus haute ? {personnage} construit une tour de 47 \u00e9tages. Record battu ! {objet} sert de pi\u00e8ce du sommet." },
+        { title: 'Le programme if-then', emoji: '\uD83D\uDCBB', text: "Flip et Flap montrent un jeu \u00e0 {personnage} : le jeu du SI-ALORS. C'est comme la logique des ordinateurs ! \"SI je tape des mains, ALORS tu sautes. SI je siffle, ALORS tu tournes.\" CLAP ! {personnage} saute. SIIIIFFF ! {personnage} tourne. \"SI je tape ET je siffle, ALORS tu sautes ET tu tournes !\" CLAP SIIIIFFF ! {personnage} saute et tourne en m\u00eame temps et tombe par terre. Tout le monde rit. C'est de la programmation en jouant !" },
+        { title: 'Le rangement fun', emoji: '\u2728', text: "{personnage} d\u00e9couvre un secret g\u00e9nial : on peut JOUER en rangeant ! Il invente le \"Rangement Musical\" : quand la musique joue, on range. Quand elle s'arr\u00eate, on fait une statue rigolote. FREEZE ! {personnage} se fige en flamant rose m\u00e9canique. Flip se fige en avion. Flap se fige la t\u00eate en bas. Tout {lieu} est rang\u00e9 en vingt minutes et tout le monde a ri. {objet} lance la musique et tout le monde danse-range." },
+        { title: 'Le spectacle', emoji: '\uD83C\uDFAD', text: "{personnage} organise le premier \"Festival du Jeu\" de {lieu}. Il y a des courses d'obstacles, des concours de grimaces, des batailles de confettis m\u00e9caniques. {personnage}, l'ancien robot s\u00e9rieux, est au centre de tout, les bras en l'air, les yeux brillants de joie. Son \u00e9cran de poitrine n'affiche plus \"ERREUR\" mais un grand smiley. M\u00eame le docteur robot participe et rit tellement que sa blouse se d\u00e9boutonne." },
+        { title: "L'\u00e9quilibre parfait", emoji: '\uD83C\uDF1F', text: "Ce soir, {personnage} range sa chambre (bien s\u00fbr !) mais il le fait en chantant. {objet} est pos\u00e9 sur l'\u00e9tag\u00e8re, \u00e0 c\u00f4t\u00e9 d'une balle et d'un livre. Ranger et jouer. Travailler et rire. \u00catre s\u00e9rieux et \u00eatre joyeux. Ce ne sont pas des contraires. C'est un \u00e9quilibre, comme les deux plateaux d'une balance. {personnage} s'endort avec un sourire sur son \u00e9cran. Les circuits de joie clignotent doucement en rythme. Tic-tac-joie, tic-tac-joie. Bonne nuit, petit robot joyeux !" }
+      ],
+      // Template 3 — Le message du futur
+      [
+        { title: 'Le colis myst\u00e9rieux', emoji: '\uD83D\uDCE6', text: "Un matin, un colis appara\u00eet au milieu de {lieu}. Personne ne l'a apport\u00e9. Il est juste... L\u00c0. Le colis est fait d'un m\u00e9tal inconnu qui brille d'une lumi\u00e8re violette. Il y a un \u00e9cran dessus qui affiche : \"POUR {personnage}. NE PAS OUVRIR AVANT 10H00.\" Il est 9h30. {personnage} tourne autour du colis. Qu'est-ce que c'est ? D'o\u00f9 \u00e7a vient ? {objet} vibre d'excitation. Trente minutes \u00e0 attendre, c'est une \u00c9TERNIT\u00c9 !" },
+        { title: "L'ouverture", emoji: '\uD83D\uDD13', text: "10h00 ! L'\u00e9cran du colis s'allume et un hologramme appara\u00eet. C'est un robot, mais un robot qu'on n'a jamais vu. Il a un design futuriste et parle d'une voix douce : \"Bonjour {personnage}. Je suis toi. Du FUTUR. Dans 100 ans exactement. Je t'envoie ce message parce que {lieu} va avoir un gros probl\u00e8me et toi seul peux le r\u00e9soudre.\" {personnage} tombe assis. C'est... c'est LUI du futur ?! Incroyable !" },
+        { title: 'Le probl\u00e8me annonc\u00e9', emoji: '\u26A0\uFE0F', text: "Le robot du futur explique : \"Aujourd'hui \u00e0 midi, le grand g\u00e9n\u00e9rateur de {lieu} va surchauffer. Si personne n'agit, il va tout casser. Mais ne t'inqui\u00e8te pas, tu as tout ce qu'il faut pour le r\u00e9parer. Dans le colis, il y a un plan.\" {personnage} ouvre le colis. \u00c0 l'int\u00e9rieur, un plan tr\u00e8s compliqu\u00e9 avec des fl\u00e8ches, des ronds et des carr\u00e9s. \"L'\u00e9lectricit\u00e9 suit un chemin, comme l'eau dans un tuyau\", explique le robot du futur. \"Si le chemin est bloqu\u00e9, \u00e7a surchauffe.\"" },
+        { title: 'Personne ne croit', emoji: '\uD83D\uDE12', text: "{personnage} court pr\u00e9venir le directeur de {lieu}. \"Le g\u00e9n\u00e9rateur va surchauffer \u00e0 midi !\" Le directeur rit. \"Impossible ! Nos machines sont parfaites. Et un message du futur ? N'importe quoi !\" Personne ne veut \u00e9couter. \"Tu racontes des b\u00eatises\", disent les autres robots. {personnage} est d\u00e9courag\u00e9. Mais {objet} vibre de plus en plus fort. Le plan du futur est l\u00e0. L'horloge dit 11h00. Il reste une heure." },
+        { title: 'La d\u00e9cision courageuse', emoji: '\uD83D\uDCAA', text: "{personnage} d\u00e9cide d'agir SEUL. M\u00eame si personne ne le croit, m\u00eame si tout le monde pense qu'il est fou. Avec {objet} et le plan du futur, {personnage} descend dans la salle du g\u00e9n\u00e9rateur. C'est une \u00e9norme machine avec des centaines de fils et de voyants lumineux. Le plan montre qu'un petit tuyau de refroidissement est bouch\u00e9 par de la poussi\u00e8re. C'est minuscule mais \u00e7a va tout faire exploser !" },
+        { title: 'La r\u00e9paration secr\u00e8te', emoji: '\uD83D\uDD27', text: "{personnage} suit le plan \u00e9tape par \u00e9tape. \u00c9tape 1 : couper l'alimentation secondaire avec le levier bleu. Un levier, c'est une barre qui tourne autour d'un point fixe. \u00c7a permet de soulever des choses lourdes facilement ! \u00c9tape 2 : ouvrir le panneau C7. \u00c9tape 3 : nettoyer le tuyau avec {objet}. La poussi\u00e8re sort en un gros nuage. PFFF ! \u00c9tape 4 : remettre l'alimentation. L'horloge dit 11h55. Cinq minutes avant midi !" },
+        { title: 'Midi pile', emoji: '\u23F0', text: "DONG DONG DONG ! Midi sonne. {personnage} retient son souffle. Si le robot du futur avait raison, sans la r\u00e9paration, le g\u00e9n\u00e9rateur aurait surchauff\u00e9 MAINTENANT. Mais... le g\u00e9n\u00e9rateur ronronne tranquillement. Les lumi\u00e8res sont vertes. Tout est normal. \u00c7a a march\u00e9 ! Mais comme rien ne s'est pass\u00e9, personne ne sait que {personnage} vient de sauver {lieu}. C'est un h\u00e9ros... secret. {objet} brille fi\u00e8rement." },
+        { title: 'La preuve', emoji: '\uD83D\uDCCA', text: "Le soir, le technicien fait sa v\u00e9rification habituelle et d\u00e9couvre que le tuyau de refroidissement a \u00e9t\u00e9 nettoy\u00e9. \"Attendez... ce tuyau \u00e9tait bouch\u00e9 \u00e0 95% ! Si personne ne l'avait nettoy\u00e9, le g\u00e9n\u00e9rateur aurait EXPLOS\u00c9 \u00e0 midi !\" Le directeur p\u00e2lit. \"Qui a fait \u00e7a ?\" Tous les regards se tournent vers {personnage}. {personnage} montre le plan du futur. Le directeur murmure : \"Tu nous as sauv\u00e9s... et on ne t'a pas cru. Pardon.\"" },
+        { title: 'Le deuxi\u00e8me message', emoji: '\uD83D\uDCE9', text: "Le soir, l'\u00e9cran du colis s'allume une derni\u00e8re fois. Le robot du futur sourit. \"Bravo. Tu as \u00e9t\u00e9 courageux m\u00eame quand personne ne te croyait. C'est pour \u00e7a que dans 100 ans, tu seras le plus grand h\u00e9ros de {lieu}.\" Puis il ajoute avec un clin d'oeil : \"Et un conseil : demain, ne prends pas le chemin de gauche. Prends celui de droite. Tu me remercieras.\" L'\u00e9cran s'\u00e9teint pour toujours. {personnage} sourit et serre {objet}." },
+        { title: 'Le h\u00e9ros discret', emoji: '\uD83C\uDF1F', text: "Ce soir, {lieu} f\u00eate {personnage}. Mais {personnage} ne se vante pas. Il sait que les vrais h\u00e9ros ne font pas les choses pour \u00eatre c\u00e9l\u00e8bres. Ils font les choses parce que c'est juste. Et parfois, il faut avoir le courage de ses convictions m\u00eame quand tout le monde dit le contraire. {objet} repose sur la table de nuit. Le futur est un myst\u00e8re, mais avec du courage et de la logique, on peut toujours trouver la solution. Bonne nuit, petit h\u00e9ros du futur !" }
+      ]
+    ]
+  },
+
+  espace: {
+    id: 'espace', name: 'Voyage dans l\'espace', emoji: '\uD83D\uDE80', color: '#2c3e50',
+    personnages: [
+      { name: 'Astro le cosmonaute', emoji: '\uD83D\uDC68\u200D\uD83D\uDE80' },
+      { name: 'Luna la petite astronaute', emoji: '\uD83D\uDC69\u200D\uD83D\uDE80' },
+      { name: 'Alien Zigzag', emoji: '\uD83D\uDC7D' },
+      { name: 'Le chat de l\u0027espace', emoji: '\uD83D\uDC31' }
+    ],
+    lieux: [
+      { name: 'La station spatiale', emoji: '\uD83D\uDEF8' },
+      { name: 'La plan\u00e8te des bonbons', emoji: '\uD83C\uDF6C' },
+      { name: 'La lune argent\u00e9e', emoji: '\uD83C\uDF19' },
+      { name: 'La galaxie multicolore', emoji: '\uD83C\uDF0C' }
+    ],
+    objets: [
+      { name: 'Le casque lumineux', emoji: '\u2B50' },
+      { name: 'La fus\u00e9e miniature', emoji: '\uD83D\uDE80' },
+      { name: "Le cristal d'\u00e9toile", emoji: '\uD83D\uDC8E' },
+      { name: 'La carte des galaxies', emoji: '\uD83D\uDDFA\uFE0F' }
+    ],
+    stories: [
+      // Template 0 — La plan\u00e8te qui avait \u00e9teint son soleil
+      [
+        { title: 'Le signal de d\u00e9tresse', emoji: '\uD83D\uDCE1', text: "BIP BIP BIP ! Un signal de d\u00e9tresse traverse l'espace \u00e0 toute vitesse. Il vient de tr\u00e8s tr\u00e8s loin, de l'autre c\u00f4t\u00e9 de la galaxie. {personnage} \u00e9coute le message : \"\u00c0 l'aide ! Notre soleil s'est \u00e9teint ! Il fait tout noir et tout froid chez nous !\" Le message vient d'une petite plan\u00e8te pr\u00e8s de {lieu}. Sans soleil, une plan\u00e8te se refroidit vite. Sans lumi\u00e8re, les plantes ne poussent plus. {personnage} attrape {objet}. Il faut partir imm\u00e9diatement !" },
+        { title: 'Le voyage \u00e0 la vitesse lumi\u00e8re', emoji: '\uD83D\uDE80', text: "La fus\u00e9e file dans l'espace. Elle passe devant Mars, la plan\u00e8te rouge. Puis devant Jupiter, la plus grosse plan\u00e8te du syst\u00e8me solaire. Jupiter est tellement grande qu'on pourrait mettre 1 300 Terres dedans ! Puis devant Saturne et ses magnifiques anneaux faits de glace et de roches. {personnage} regarde par le hublot et serre {objet}. L'espace est immense. Les \u00e9toiles brillent comme des millions de petites bougies dans le noir." },
+        { title: 'La plan\u00e8te sombre', emoji: '\uD83C\uDF11', text: "{personnage} arrive pr\u00e8s de {lieu} et voit la petite plan\u00e8te en d\u00e9tresse. Elle est toute grise et froide. Son soleil, juste \u00e0 c\u00f4t\u00e9, est \u00e9teint ! D'habitude, un soleil est une \u00e9norme boule de feu. Mais celui-ci est sombre et silencieux. C'est comme si quelqu'un avait souffl\u00e9 dessus comme une bougie. La plan\u00e8te est couverte de neige noire. Les habitants, de petits \u00eatres bleus, tremblent de froid dans des couvertures." },
+        { title: 'Le roi inquiet', emoji: '\uD83D\uDE1F', text: "Le roi de la plan\u00e8te, un petit \u00eatre bleu avec une couronne de glace, accueille {personnage}. \"Notre soleil s'est \u00e9teint il y a trois jours. On ne sait pas pourquoi. On a tout essay\u00e9 : souffler dessus, le chatouiller, lui chanter des chansons. Rien ne marche !\" {personnage} regarde le soleil \u00e9teint avec {objet}. Bizarre... le soleil n'est pas mort. Il est juste... endormi ? Il fait de tout petits ronflements de feu. Rrrrrr, pffffff." },
+        { title: 'Le soleil triste', emoji: '\u2B50', text: "Avec {objet}, {personnage} s'approche du soleil endormi. En l'examinant, {personnage} d\u00e9couvre la v\u00e9rit\u00e9 : le soleil n'est pas \u00e9teint, il est TRISTE ! Un soleil est fait de gaz tr\u00e8s chaud. Quand il est heureux, le gaz br\u00fble et produit de la lumi\u00e8re et de la chaleur. Mais quand il est triste, le gaz se refroidit et le soleil s'\u00e9teint. \"Pourquoi tu es triste, petit soleil ?\" murmure {personnage}." },
+        { title: "L'histoire du soleil", emoji: '\uD83D\uDE22', text: "Le soleil parle d'une voix toute faible, comme une flamme qui vacille : \"Personne ne me dit jamais merci. Chaque jour, je me l\u00e8ve, je brille, je r\u00e9chauffe tout le monde. Mais personne ne l\u00e8ve les yeux. Personne ne dit : merci, soleil, pour cette belle journ\u00e9e. Alors j'ai d\u00e9cid\u00e9 d'arr\u00eater.\" {personnage} sent son coeur se serrer. C'est vrai que personne ne pense \u00e0 remercier le soleil. On le trouve normal. Mais sans lui, tout s'arr\u00eate." },
+        { title: 'Le plan', emoji: '\uD83D\uDCA1', text: "{personnage} retourne sur la plan\u00e8te et parle aux habitants. \"Votre soleil est triste parce que personne ne le remercie.\" Les petits \u00eatres bleus sont choqu\u00e9s. \"Mais... on ne savait pas qu'un soleil avait des sentiments !\" \"Tout ce qui donne de l'amour a besoin d'en recevoir aussi\", dit {personnage}. Le roi a une id\u00e9e : \"On va organiser la plus grande f\u00eate de remerciement de l'univers !\" {objet} brille d'approbation." },
+        { title: 'La f\u00eate pour le soleil', emoji: '\uD83C\uDF89', text: "Tous les habitants de la plan\u00e8te se placent en cercle et regardent le soleil. Ils crient tous ensemble : \"MERCI, SOLEIL ! MERCI POUR LA LUMI\u00c8RE ! MERCI POUR LA CHALEUR ! ON T'AIME !\" Ils chantent, ils dansent, ils envoient des petites fus\u00e9es de lumi\u00e8re vers lui. {personnage} l\u00e8ve {objet} et projette un coeur lumineux g\u00e9ant. Le soleil frissonne. Une toute petite flamme appara\u00eet en son centre. Puis une autre. Le soleil... sourit ?" },
+        { title: 'Le soleil se r\u00e9veille', emoji: '\uD83C\uDF1E', text: "WHOOOOOUSH ! Le soleil explose de lumi\u00e8re ! Il se r\u00e9veille d'un coup, plus brillant que jamais ! Sa chaleur inonde la plan\u00e8te. La neige noire fond en quelques secondes. Les fleurs bleues repoussent. Les petits \u00eatres bleus jettent leurs couvertures et dansent sous les rayons. Le soleil rit, un gros rire chaud et lumineux qui fait des vagues de chaleur. \"MERCI \u00c0 VOUS !\", crie-t-il. Son feu br\u00fble de joie. La nuit se transforme en jour, comme chaque matin sur Terre quand le soleil se l\u00e8ve." },
+        { title: 'La promesse \u00e9toil\u00e9e', emoji: '\uD83C\uDF1F', text: "Le roi promet que chaque matin, tous les habitants diront bonjour et merci au soleil. {personnage} repart dans sa fus\u00e9e. En passant pr\u00e8s de {lieu}, {personnage} regarde la petite plan\u00e8te redevenue vivante et lumineuse. {objet} brille sur le tableau de bord. Ce soir, en voyant le coucher de soleil orange et rose, {personnage} murmure : \"Merci, soleil.\" Une \u00e9toile clignote en r\u00e9ponse. Dire merci, c'est un tout petit mot qui peut r\u00e9chauffer m\u00eame un soleil. Bonne nuit, voyageur reconnaissant !" }
+      ],
+      // Template 1 — Les \u00e9toiles qui jouaient \u00e0 cache-cache
+      [
+        { title: 'Les \u00e9toiles disparues', emoji: '\uD83C\uDF0C', text: "\"O\u00d9 SONT LES \u00c9TOILES ?!\" {personnage} regarde par le hublot de la fus\u00e9e. Le ciel est VIDE. Noir total. Pas une seule \u00e9toile ! D'habitude, l'espace est rempli de milliards d'\u00e9toiles. Elles forment des constellations, des dessins dans le ciel. La Grande Ourse ressemble \u00e0 une casserole. Orion ressemble \u00e0 un chasseur. Mais ce soir, rien du tout. Noir comme dans un placard ferm\u00e9. {objet} ne brille m\u00eame plus. Direction {lieu} pour comprendre !" },
+        { title: 'Le gardien du ciel', emoji: '\uD83E\uDDD9', text: "\u00c0 {lieu}, {personnage} trouve le Gardien du Ciel. C'est un tr\u00e8s vieil \u00eatre cosmique, grand comme une montagne et transparent comme un nuage. \"Les \u00e9toiles jouent \u00e0 cache-cache\", soupire-t-il. \"\u00c7a arrive tous les mille ans. Elles adorent jouer mais cette fois, elles se sont si bien cach\u00e9es que m\u00eame moi je ne les retrouve pas.\" {personnage} \u00e9carquille les yeux. Les \u00e9toiles jouent \u00e0 cache-cache ?! C'est pas possible !" },
+        { title: 'La premi\u00e8re \u00e9toile', emoji: '\u2B50', text: "Le Gardien donne un indice \u00e0 {personnage} : \"La premi\u00e8re \u00e9toile se cache l\u00e0 o\u00f9 la lumi\u00e8re na\u00eet.\" Hmm... {personnage} r\u00e9fl\u00e9chit avec {objet}. O\u00f9 la lumi\u00e8re na\u00eet-elle ? Dans le feu ! {personnage} cherche et trouve une n\u00e9buleuse, un immense nuage de gaz o\u00f9 naissent les nouvelles \u00e9toiles. Et l\u00e0, cach\u00e9e derri\u00e8re un gros nuage violet, une petite \u00e9toile glousse : \"Hi hi hi, tu m'as trouv\u00e9e !\" Elle est toute chaude et joyeuse." },
+        { title: 'La deuxi\u00e8me cach\u00e9e', emoji: '\uD83D\uDE48', text: "\"L'\u00e9toile suivante se cache derri\u00e8re le g\u00e9ant\", dit la premi\u00e8re \u00e9toile. Le g\u00e9ant ? Jupiter ! La plus grosse plan\u00e8te ! {personnage} vole jusqu'\u00e0 Jupiter. Elle est \u00c9NORME, toute ray\u00e9e d'orange et de blanc, avec un oeil g\u00e9ant : la Grande Tache Rouge, une temp\u00eate qui dure depuis plus de 300 ans. Et derri\u00e8re Jupiter, une \u00e9toile tr\u00e8s timide se cache. \"Je ne voulais pas qu'on me trouve\", murmure-t-elle. \"Je suis trop petite.\" {personnage} la prend dans ses mains. \"Tu es parfaite.\"" },
+        { title: 'La constellation perdue', emoji: '\uD83D\uDD2D', text: "{personnage} retrouve des \u00e9toiles partout. Cinq se cachent derri\u00e8re les anneaux de Saturne. Trois font semblant d'\u00eatre des ast\u00e9ro\u00efdes. Deux se sont d\u00e9guis\u00e9es en com\u00e8tes. Mais il en manque encore BEAUCOUP. {objet} commence \u00e0 briller d'une lumi\u00e8re sp\u00e9ciale : chaque \u00e9toile retrouv\u00e9e ajoute une pointe de lumi\u00e8re. C'est comme un puzzle g\u00e9ant dans l'espace. Chaque \u00e9toile a sa place dans une constellation, comme chaque pi\u00e8ce a sa place dans un puzzle." },
+        { title: "L'\u00e9toile tricheuse", emoji: '\uD83D\uDE08', text: "{personnage} approche de {lieu} et entend un rire malicieux. \"NA NA NA, VOUS NE ME TROUVEREZ JAMAIS !\" C'est Supernova, la plus grosse \u00e9toile de toutes. Elle se cache dans un trou noir ! Un trou noir est une zone de l'espace o\u00f9 la gravit\u00e9 est si forte que m\u00eame la lumi\u00e8re ne peut pas s'\u00e9chapper. C'est de la triche ! \"Sors de l\u00e0, Supernova, c'est dangereux !\" crie {personnage}. \"Jamais ! Ici personne ne me voit !\"" },
+        { title: 'Le pi\u00e8ge du trou noir', emoji: '\uD83C\uDF00', text: "Mais Supernova a un probl\u00e8me : elle ne peut PLUS sortir ! La gravit\u00e9 du trou noir la retient. \"AIDEZ-MOI !\" Les autres \u00e9toiles retrouv\u00e9es s'assemblent. \"Si on brille toutes ensemble, on peut tirer Supernova hors du trou noir !\" Toutes les \u00e9toiles se mettent en cercle et brillent de toutes leurs forces. {personnage} l\u00e8ve {objet} et ajoute sa lumi\u00e8re. La gravit\u00e9, c'est la force qui attire les choses entre elles. C'est elle qui nous tient sur la Terre au lieu de flotter !" },
+        { title: 'Le sauvetage lumineux', emoji: '\uD83D\uDCA5', text: "FLASH ! Toutes les \u00e9toiles brillent ensemble. C'est une lumi\u00e8re INCROYABLE ! Le trou noir ne peut pas retenir tant de lumi\u00e8re. Supernova est arrach\u00e9e \u00e0 son pi\u00e8ge. WHOOOOSH ! Elle jaillit comme un feu d'artifice, plus brillante que jamais. \"YOUHOU ! JE SUIS LIBRE !\" Toutes les \u00e9toiles dansent de joie autour de {lieu}. Le ciel redevient magnifique, couvert de millions de points lumineux. Les constellations se reforment. La Grande Ourse, Orion, Cassiop\u00e9e..." },
+        { title: 'Les \u00e9toiles rentrent', emoji: '\uD83C\uDF03', text: "Une par une, les \u00e9toiles retournent \u00e0 leur place dans le ciel. La petite \u00e9toile timide se place fi\u00e8rement entre deux grandes. \"Je suis peut-\u00eatre petite, mais on m'a cherch\u00e9e quand m\u00eame !\" Supernova promet de ne plus tricher au cache-cache. Le Gardien du Ciel sourit pour la premi\u00e8re fois en mille ans. \"Merci, {personnage}. Sans toi, le ciel serait rest\u00e9 noir pour longtemps.\" {objet} brille en harmonie avec les \u00e9toiles. On dirait qu'il fait partie d'une constellation." },
+        { title: 'Le ciel retrouv\u00e9', emoji: '\uD83C\uDF1F', text: "Ce soir, {personnage} flotte pr\u00e8s de {lieu} et regarde le ciel. Il n'a JAMAIS \u00e9t\u00e9 aussi beau. Chaque \u00e9toile brille avec gratitude. Elles forment un nouveau dessin, juste pour {personnage} : un coeur g\u00e9ant de lumi\u00e8re dans le ciel noir. {objet} repose sur les genoux de {personnage}. Quand la nuit est noire, c'est juste que les \u00e9toiles jouent \u00e0 cache-cache. Il suffit de lever les yeux et de chercher. Elles sont toujours l\u00e0. Bonne nuit, chasseur d'\u00e9toiles !" }
+      ],
+      // Template 2 — La gravit\u00e9 en vacances
+      [
+        { title: 'Tout flotte', emoji: '\u2B50', text: "Ce matin, quelque chose de TR\u00c8S bizarre se passe \u00e0 {lieu}. Les chaussettes de {personnage} flottent en l'air. Le petit-d\u00e9jeuner flotte. Le lit flotte ! TOUT flotte ! La gravit\u00e9 a DISPARU ! La gravit\u00e9, c'est la force invisible qui nous tient sur le sol. Sans elle, on s'envole comme un ballon. {personnage} attrape {objet} qui passe devant son nez. \"C'est quoi ce bazar ?!\" Les c\u00e9r\u00e9ales flottent comme des petites plan\u00e8tes dans un bol-galaxie." },
+        { title: 'Le chaos spatial', emoji: '\uD83D\uDE35', text: "\u00c0 {lieu}, c'est la folie totale ! Les gens marchent au plafond. Les voitures flottent au-dessus des immeubles. Les chats tournent en rond dans les airs en miaulant. Un bonhomme de neige flotte la t\u00eate en bas. L'eau de la fontaine forme des boules qui dansent. Un b\u00e9b\u00e9 rit aux \u00e9clats en faisant des galipettes dans les airs. C'est rigolo... mais aussi tr\u00e8s dangereux. Sans gravit\u00e9, rien ne reste en place ! {personnage} nage dans l'air avec {objet}." },
+        { title: 'Le message de la gravit\u00e9', emoji: '\uD83D\uDCE9', text: "{personnage} re\u00e7oit un message sur son \u00e9cran. C'est... la GRAVIT\u00c9 elle-m\u00eame ! Elle parle avec une grosse voix ronde : \"J'EN AI MARRE. Je travaille 24 heures sur 24, 365 jours par an, depuis la naissance de l'univers. Et personne ne me dit jamais merci. Je prends des VACANCES !\" {personnage} \u00e9carquille les yeux. La gravit\u00e9 prend des vacances ?! \"O\u00f9 es-tu all\u00e9e ?\" \"Sur une plage cosmique pr\u00e8s de Neptune. J'ai besoin de repos.\"" },
+        { title: 'La n\u00e9gociation', emoji: '\uD83D\uDE4F', text: "{personnage} vole dans l'espace jusqu'\u00e0 Neptune, la plan\u00e8te bleue et vent\u00e9e. Neptune est tr\u00e8s loin du Soleil, la huiti\u00e8me plan\u00e8te. Il fait tr\u00e8s froid l\u00e0-bas. Et l\u00e0, sur un ast\u00e9ro\u00efde transform\u00e9 en plage, la Gravit\u00e9 est allong\u00e9e avec des lunettes de soleil cosmiques. \"S'il te pla\u00eet, reviens !\" supplie {personnage}. \"Non\", dit la Gravit\u00e9. \"Tout le monde me trouve normale. Personne ne se demande comment je marche. Je suis invisible et oubli\u00e9e.\"" },
+        { title: 'La d\u00e9monstration', emoji: '\uD83C\uDF0D', text: "{personnage} d\u00e9cide de montrer \u00e0 tout le monde \u00e0 quel point la Gravit\u00e9 est importante. Avec {objet}, il envoie des images en direct de {lieu} : les gens qui flottent n'importe o\u00f9, l'eau qui s'envole des verres, les maisons qui d\u00e9collent. \"Regarde ce qui se passe sans toi !\", dit {personnage}. La Gravit\u00e9 enl\u00e8ve ses lunettes et regarde. \"Oh... ils ont vraiment besoin de moi ?\" \"TOUT LE MONDE a besoin de toi. Tu es la force la plus importante de l'univers !\"" },
+        { title: 'La liste des merveilles', emoji: '\uD83D\uDCDD', text: "{personnage} fait la liste de tout ce que la Gravit\u00e9 permet : marcher sur le sol, que la pluie tombe, que les rivi\u00e8res coulent, que la Lune tourne autour de la Terre, que la Terre tourne autour du Soleil, que les plan\u00e8tes restent en place, que les \u00e9toiles forment des galaxies. \"Sans toi, l'univers entier se disperserait comme des confettis dans le vent. Tu es celle qui tient TOUT ensemble !\" La Gravit\u00e9 rougit (si une force invisible peut rougir)." },
+        { title: 'Le retour de la Gravit\u00e9', emoji: '\uD83C\uDF89', text: "La Gravit\u00e9 se l\u00e8ve de sa plage cosmique. \"D'accord, je reviens. Mais \u00e0 une condition : chaque jour, quelqu'un doit dire merci \u00e0 une chose invisible mais importante.\" \"March\u00e9 conclu !\" dit {personnage}. La Gravit\u00e9 prend une grande inspiration et souffle. WHOOOOOMP ! La force invisible se r\u00e9pand dans l'espace \u00e0 la vitesse de la lumi\u00e8re. La lumi\u00e8re voyage \u00e0 300 000 kilom\u00e8tres par seconde. C'est la chose la plus rapide de l'univers !" },
+        { title: 'Tout retombe', emoji: '\uD83C\uDF0D', text: "\u00c0 {lieu}, tout retombe d'un coup ! BOUM, SPLASH, PATATRAS ! Les gens atterrissent sur le sol. Les voitures se posent. L'eau retombe dans la fontaine. Le bonhomme de neige se reconstruit. \"HOURRA !\" crient tous les habitants. Ils touchent le sol avec bonheur. Marcher, courir, sauter et retomber. Des choses simples qui semblent normales mais qui sont MAGIQUES quand on y pense. {objet} tombe doucement dans la main de {personnage}." },
+        { title: 'La journ\u00e9e du merci', emoji: '\uD83D\uDC9A', text: "Pour tenir la promesse faite \u00e0 la Gravit\u00e9, {personnage} invente la \"Journ\u00e9e du Merci Invisible\". Chacun dit merci \u00e0 une chose invisible mais essentielle. \"Merci, l'air, de nous laisser respirer !\" \"Merci, la chaleur, de nous garder au chaud !\" \"Merci, le sommeil, de nous r\u00e9parer la nuit !\" C'est une journ\u00e9e magnifique. Les gens sourient en pensant \u00e0 toutes ces merveilles invisibles qui les entourent." },
+        { title: 'La force invisible', emoji: '\uD83C\uDF1F', text: "Ce soir, {personnage} est bien les pieds sur le sol, \u00e0 {lieu}. Les \u00e9toiles brillent. La Lune est ronde et argent\u00e9e, tenue en orbite par la Gravit\u00e9. {objet} repose sagement sur la table (il ne flotte plus !). {personnage} murmure : \"Merci, Gravit\u00e9.\" Quelque part dans l'espace, une force invisible sourit. Les choses les plus importantes sont souvent celles qu'on ne voit pas. L'amour, l'amiti\u00e9, la gravit\u00e9... elles tiennent le monde ensemble. Bonne nuit, ami de l'invisible !" }
+      ],
+      // Template 3 — Le jour et la nuit
+      [
+        { title: 'La dispute cosmique', emoji: '\uD83C\uDF1E', text: "\"C'EST MOI LE PLUS IMPORTANT !\" crie le Jour en projetant des rayons dor\u00e9s. \"NON, C'EST MOI !\" crie la Nuit en \u00e9tendant son manteau d'\u00e9toiles. Le Jour et la Nuit se disputent \u00e0 {lieu} ! Le Jour veut briller tout le temps : \"Les gens m'aiment, je suis chaud et lumineux !\" La Nuit veut r\u00e9gner tout le temps : \"Les gens ont besoin de dormir et mes \u00e9toiles sont magnifiques !\" {personnage} les regarde se chamailler, {objet} en main." },
+        { title: 'Le Jour sans Nuit', emoji: '\u2600\uFE0F', text: "Le Jour gagne la premi\u00e8re manche et brille SANS ARR\u00caT pendant trois jours. Pas de nuit du tout ! Au d\u00e9but, les gens sont contents. Mais tr\u00e8s vite, c'est horrible. Personne ne peut dormir ! Les yeux sont fatigu\u00e9s. Les fleurs ne se ferment jamais. Les hiboux sont perdus. La temp\u00e9rature monte sans cesse parce que le soleil tape toute la journ\u00e9e. {personnage} a les yeux tout rouges de fatigue. {objet} surchauffe. \"Assez ! On a besoin de la nuit !\"" },
+        { title: 'La Nuit sans Jour', emoji: '\uD83C\uDF11', text: "La Nuit prend le relais et fait nuit TOUT LE TEMPS. Au d\u00e9but, les gens dorment bien. Mais au bout de trois jours, c'est horrible aussi. Il fait froid, tr\u00e8s froid. Les plantes ne poussent plus sans lumi\u00e8re du soleil. Les enfants ne peuvent plus jouer dehors. Les oiseaux ne chantent plus. Tout est triste et gris. Sans lumi\u00e8re, la Terre se refroidit car c'est le Soleil qui la r\u00e9chauffe pendant le jour. {personnage} frissonne. \"Assez ! On a besoin du jour aussi !\"" },
+        { title: "L'id\u00e9e de {personnage}", emoji: '\uD83D\uDCA1', text: "{personnage} r\u00e9unit le Jour et la Nuit. \"\u00c9coutez-moi ! Vous \u00eates AUSSI importants l'un que l'autre. Le jour, on travaille, on joue, on rit. La nuit, on dort, on r\u00eave, on se repose. L'un ne peut pas exister sans l'autre !\" Le Jour croise les bras. La Nuit boude. \"Prouve-le\", disent-ils ensemble. {personnage} sourit et l\u00e8ve {objet}. Il a un plan." },
+        { title: 'Le coucher de soleil', emoji: '\uD83C\uDF05', text: "{personnage} emm\u00e8ne le Jour et la Nuit au bord d'un crat\u00e8re de {lieu}. \"Regardez. Le plus beau moment de la journ\u00e9e, c'est lequel ? C'est le moment o\u00f9 le jour RENCONTRE la nuit !\" {objet} projette un coucher de soleil magnifique. Le ciel devient orange, rose, violet et bleu fonc\u00e9. C'est splendide ! Le Jour et la Nuit \u00e9carquillent les yeux. Ce m\u00e9lange de leurs couleurs est plus beau que tout ce qu'ils pourraient faire seuls." },
+        { title: "L'aube magique", emoji: '\uD83C\uDF04', text: "\"Et maintenant, l'aube !\" {objet} projette le lever du soleil. Le noir de la nuit s'\u00e9claire tout doucement. Le ciel passe du bleu profond au rose p\u00e2le, puis au dor\u00e9. Les premi\u00e8res \u00e9toiles s'\u00e9teignent pendant que le soleil monte. Les oiseaux chantent leur premi\u00e8re note. La ros\u00e9e brille sur les feuilles. \"C'est quand la nuit laisse la place au jour que la magie arrive\", dit {personnage}. Le Jour et la Nuit sont bouche b\u00e9e." },
+        { title: 'La r\u00e9conciliation', emoji: '\uD83E\uDD1D', text: "Le Jour regarde la Nuit. La Nuit regarde le Jour. \"Tu sais quoi\", dit le Jour, \"tes \u00e9toiles sont vraiment belles.\" La Nuit rougit (enfin, elle scintille). \"Et ta lumi\u00e8re est vraiment chaude et agr\u00e9able.\" Ils se serrent la main (enfin, ils m\u00ealent leurs couleurs). Et l\u00e0, un ph\u00e9nom\u00e8ne incroyable se produit : un cr\u00e9puscule permanent entoure {lieu}. Un moment magique entre jour et nuit, entre lumi\u00e8re et ombre, entre chaud et frais. C'est magnifique." },
+        { title: "L'accord", emoji: '\u2696\uFE0F', text: "Le Jour et la Nuit signent un accord cosmique. Le Jour brillera pendant environ 12 heures, puis la Nuit prendra le relais pendant 12 heures. C'est pour \u00e7a que sur Terre, la rotation de la plan\u00e8te fait alterner le jour et la nuit. La Terre tourne sur elle-m\u00eame en 24 heures. Le c\u00f4t\u00e9 face au Soleil a le jour, le c\u00f4t\u00e9 oppos\u00e9 a la nuit. \"March\u00e9 conclu !\", disent-ils. {personnage} applaudit avec {objet}." },
+        { title: 'Les saisons en bonus', emoji: '\uD83C\uDF43', text: "En bonus, le Jour et la Nuit cr\u00e9ent les SAISONS. En \u00e9t\u00e9, le Jour brille plus longtemps. En hiver, c'est la Nuit qui reste plus longtemps. Au printemps et en automne, ils se partagent le temps \u00e0 parts \u00e9gales. \"Comme \u00e7a, personne ne s'ennuie !\" dit le Jour. \"Et les enfants d\u00e9couvrent la neige, les fleurs, le soleil et les feuilles qui tombent !\" ajoute la Nuit. {personnage} hoche la t\u00eate avec {objet}. Chaque saison est un cadeau." },
+        { title: 'Le plus beau moment', emoji: '\uD83C\uDF1F', text: "Ce soir, {personnage} regarde le coucher de soleil depuis {lieu}. Le ciel explose de couleurs : orange, rose, violet, bleu. C'est le moment o\u00f9 le Jour dit bonsoir et la Nuit dit bonjour. {objet} brille dans les derni\u00e8res lueurs. {personnage} sait maintenant que le jour et la nuit ne sont pas ennemis. Ils sont partenaires, comme les deux faces d'une m\u00eame pi\u00e8ce. Et le plus beau moment, c'est quand ils se rencontrent. Bonne nuit, petit astronome !" }
+      ]
+    ]
+  },
+
+  sante: {
+    id: 'sante', name: 'Sant\u00e9', emoji: '\uD83C\uDFE5', color: '#e74c3c',
+    personnages: [
+      { name: 'Docteur Colette', emoji: '\uD83D\uDC69\u200D\u2695\uFE0F' },
+      { name: 'Infirmier Simon', emoji: '\uD83D\uDC68\u200D\u2695\uFE0F' },
+      { name: 'Petit Microbe', emoji: '\uD83E\uDDA0' },
+      { name: 'Philibert', emoji: '\uD83D\uDC74' }
+    ],
+    lieux: [
+      { name: "L'h\u00f4pital des doudous", emoji: '\uD83C\uDFE5' },
+      { name: 'La pharmacie magique', emoji: '\uD83D\uDC8A' },
+      { name: 'Le jardin des vitamines', emoji: '\uD83E\uDD55' },
+      { name: 'Le corps humain g\u00e9ant', emoji: '\uD83E\uDEC0' }
+    ],
+    objets: [
+      { name: 'Le st\u00e9thoscope magique', emoji: '\uD83E\uDE7A' },
+      { name: 'Le pansement enchant\u00e9', emoji: '\uD83E\uDE79' },
+      { name: 'La pomme dor\u00e9e', emoji: '\uD83C\uDF4E' },
+      { name: 'Le savon \u00e0 bulles', emoji: '\uD83E\uDDFC' }
+    ],
+    stories: [
+      // Template 0 — La visite chez le docteur
+      [
+        { title: 'La lettre du docteur', emoji: '\uD83D\uDCE8', text: "Ce matin, Maman donne une lettre \u00e0 {personnage}. \"C'est l'heure de ta visite m\u00e9dicale \u00e0 {lieu}.\" Le coeur de {personnage} se met \u00e0 battre tr\u00e8s fort. Le docteur ! Les docteurs font des piq\u00fbres, non ? Et ils ont des instruments bizarres. {personnage} serre {objet} tr\u00e8s fort. \"Je ne veux pas y aller !\" Maman sourit. \"Tu sais, le docteur est l\u00e0 pour v\u00e9rifier que tu vas bien. C'est comme un contr\u00f4le technique, mais pour les enfants.\"" },
+        { title: 'Le trajet', emoji: '\uD83D\uDE97', text: "Dans la voiture, {personnage} regarde par la fen\u00eatre avec {objet} sur les genoux. Tout semble normal dehors, mais dans le ventre de {personnage}, \u00e7a fait des noeuds. \"Et si le docteur trouve quelque chose de grave ?\" \"Les visites m\u00e9dicales servent justement \u00e0 v\u00e9rifier que tout va bien\", explique Maman. \"M\u00eame quand on n'est pas malade, on va chez le docteur une fois par an. C'est pour \u00e7a qu'on appelle \u00e7a un bilan de sant\u00e9.\" {personnage} hoche la t\u00eate, pas tout \u00e0 fait rassur\u00e9." },
+        { title: 'La salle d\'attente', emoji: '\uD83D\uDECB\uFE0F', text: "\u00c0 {lieu}, la salle d'attente est pleine de couleurs. Il y a des dessins d'enfants sur les murs, des livres et des jouets. Un petit gar\u00e7on joue avec des cubes. Une petite fille feuillette un album. Personne n'a l'air d'avoir peur. {personnage} s'assoit et regarde autour. Il y a une affiche qui montre le corps humain avec tous les organes. Le coeur est en haut \u00e0 gauche, les poumons ressemblent \u00e0 des \u00e9ponges roses. \"C'est bient\u00f4t \u00e0 nous\", dit Maman. {objet} est bien serr\u00e9 dans les mains." },
+        { title: 'La rencontre', emoji: '\uD83D\uDC69\u200D\u2695\uFE0F', text: "La porte s'ouvre. \"Bonjour ! Entre, n'aie pas peur.\" Le docteur a un grand sourire et une voix douce. Son bureau est lumineux. Il y a un mod\u00e8le du squelette dans un coin. \"Waouh, c'est un vrai squelette ?\" demande {personnage}. \"C'est un mod\u00e8le en plastique. Il s'appelle Oscar !\" {personnage} rit un peu. Le docteur n'est pas effrayant du tout. \"Aujourd'hui, on va v\u00e9rifier que ton corps fonctionne bien. Je vais t'expliquer chaque \u00e9tape, d'accord ?\" {personnage} hoche la t\u00eate." },
+        { title: 'Les yeux et les oreilles', emoji: '\uD83D\uDC41\uFE0F', text: "\"On commence par les yeux !\" Le docteur montre un tableau avec des lettres de diff\u00e9rentes tailles. \"Lis les lettres que tu vois.\" {personnage} lit : \"E, F, P, T, O, Z...\" Les lettres deviennent de plus en plus petites. \"Excellent ! Tes yeux voient tr\u00e8s bien.\" Ensuite, le docteur regarde dans les oreilles avec un petit appareil lumineux qui s'appelle un otoscope. \"Il y a de la lumi\u00e8re dans mon oreille !\" dit {personnage}. \"C'est pour voir si tout est propre et en bonne sant\u00e9 \u00e0 l'int\u00e9rieur.\" {objet} attend sagement sur la chaise." },
+        { title: 'Le coeur qui bat', emoji: '\u2764\uFE0F', text: "\"Maintenant, on \u00e9coute ton coeur.\" Le docteur sort un st\u00e9thoscope. \"C'est froid !\" dit {personnage} quand le m\u00e9tal touche sa poitrine. \"Respire fort... et encore.\" Boum, boum, boum, fait le coeur. \"Ton coeur bat parfaitement bien ! Il bat environ 100 fois par minute chez un enfant. C'est un muscle incroyable qui ne s'arr\u00eate jamais, m\u00eame quand tu dors.\" {personnage} pose la main sur sa poitrine et sent les battements. \"Il travaille tout le temps pour moi ?\" \"Tout le temps, oui !\"" },
+        { title: 'La taille et le poids', emoji: '\uD83D\uDCCF', text: "Le docteur mesure {personnage} contre une toise au mur. \"Tu as grandi de trois centim\u00e8tres depuis la derni\u00e8re fois !\" Puis {personnage} monte sur la balance. \"Ton poids est parfait pour ta taille.\" Le docteur dessine un point sur une courbe dans le carnet de sant\u00e9. \"Cette courbe montre comment tu grandis. Chaque enfant grandit \u00e0 son rythme. Certains poussent vite, d'autres doucement, et c'est tout \u00e0 fait normal.\" {personnage} est fi\u00e8re d'avoir grandi. {objet} semble fi\u00e8re aussi." },
+        { title: 'Les questions du docteur', emoji: '\uD83D\uDDE3\uFE0F', text: "Le docteur pose des questions. \"Est-ce que tu dors bien la nuit ? Est-ce que tu manges de tout ? Est-ce que tu fais du sport ?\" {personnage} r\u00e9pond \u00e0 chaque question. \"Parfois je n'aime pas les \u00e9pinards.\" Le docteur rit. \"C'est normal de ne pas tout aimer ! L'important, c'est de go\u00fbter un peu de chaque chose. Ton corps a besoin de diff\u00e9rents aliments pour bien grandir.\" Puis le docteur v\u00e9rifie les dents. \"Ouvre grand ! Aaaa !\" Les dents sont belles et blanches." },
+        { title: 'Le vaccin courageux', emoji: '\uD83D\uDC89', text: "\"Aujourd'hui, tu as besoin d'un petit vaccin de rappel.\" Le ventre de {personnage} se noue. \"Un vaccin, c'est quoi exactement ?\" \"C'est une toute petite piq\u00fbre qui apprend \u00e0 ton corps \u00e0 se d\u00e9fendre contre les maladies. Comme un entra\u00eenement pour tes d\u00e9fenses.\" L'infirmier d\u00e9sinfecte le bras. \"Tu vas sentir une petite piq\u00fbre, comme une fourmi qui mord.\" {personnage} serre {objet} tr\u00e8s fort, ferme les yeux... \"C'est fini !\" dit l'infirmier. \"D\u00e9j\u00e0 ?!\" C'\u00e9tait rapide comme l'\u00e9clair !" },
+        { title: 'Le h\u00e9ros du bilan', emoji: '\uD83C\uDF1F', text: "Le docteur donne un autocollant \u00e0 {personnage}. \"Tu as \u00e9t\u00e9 tr\u00e8s courageux aujourd'hui.\" {personnage} colle l'autocollant sur {objet} et sourit. Dehors, le soleil brille. \"C'\u00e9tait pas si terrible, finalement\", dit {personnage} \u00e0 Maman. \"Le docteur est gentil et il m'a tout expliqu\u00e9.\" Ce soir, dans son lit, {personnage} serre {objet} et repense \u00e0 la journ\u00e9e. Les docteurs ne sont pas l\u00e0 pour faire peur. Ils sont l\u00e0 pour prendre soin de nous et nous aider \u00e0 rester en bonne sant\u00e9. Bonne nuit, petit courageux !" }
+      ],
+      // Template 1 — L'\u00e9pid\u00e9mie de gastro
+      [
+        { title: 'Les absents', emoji: '\uD83C\uDFEB', text: "Ce matin, \u00e0 {lieu}, quelque chose de bizarre se passe. La moiti\u00e9 des enfants sont absents ! La ma\u00eetresse fait l'appel : \"L\u00e9a ? Absente. Hugo ? Absent. Mia ? Absente.\" M\u00eame la dame de la cantine est malade. \"Qu'est-ce qui se passe ?\" se demande {personnage} en serrant {objet}. \"Tout le monde a mal au ventre depuis hier\", explique un copain. \"Ma soeur a vomi toute la nuit !\" C'est une \u00e9pid\u00e9mie de gastro-ent\u00e9rite qui se r\u00e9pand \u00e0 toute vitesse !" },
+        { title: "L'enqu\u00eate", emoji: '\uD83D\uDD0D', text: "{personnage} d\u00e9cide de mener l'enqu\u00eate. Pourquoi tout le monde tombe malade ? \"Les microbes se transmettent quand on ne fait pas attention\", explique la ma\u00eetresse. {personnage} observe attentivement la cour de r\u00e9cr\u00e9ation. Paul \u00e9ternue dans ses mains puis touche la balustrade. Jade mange son go\u00fbter sans se laver les mains. Tom boit dans la bouteille de Louise. \"J'ai compris !\" dit {personnage}. \"Les microbes passent d'un enfant \u00e0 l'autre par les mains et les objets !\" {objet} semble confirmer." },
+        { title: 'Les microbes invisibles', emoji: '\uD83E\uDDA0', text: "La ma\u00eetresse fait une exp\u00e9rience g\u00e9niale \u00e0 {lieu}. Elle met de la peinture brillante sur les mains d'un seul enfant. \"Jouez normalement pendant dix minutes.\" Apr\u00e8s dix minutes, la ma\u00eetresse \u00e9teint la lumi\u00e8re et allume une lampe sp\u00e9ciale. SURPRISE ! La peinture est PARTOUT ! Sur les mains de tous les enfants, sur les tables, les poign\u00e9es de porte, les crayons, les livres. \"Voil\u00e0 comment les microbes voyagent\", dit la ma\u00eetresse. {personnage} \u00e9carquille les yeux." },
+        { title: 'Le super-pouvoir du savon', emoji: '\uD83E\uDDFC', text: "\"Heureusement, on a une arme secr\u00e8te contre les microbes !\" dit la ma\u00eetresse. \"Le SAVON !\" Elle montre comment bien se laver les mains : mouiller, mettre du savon, frotter les paumes, entre les doigts, le dessus des mains, les poignets, sous les ongles. \"Il faut frotter pendant vingt secondes. C'est le temps de chanter Joyeux anniversaire deux fois !\" Toute la classe chante en se lavant les mains. {personnage} frotte, frotte avec {objet} pos\u00e9 \u00e0 c\u00f4t\u00e9 du lavabo." },
+        { title: 'Les r\u00e8gles d\'or', emoji: '\uD83D\uDCCB', text: "{personnage} cr\u00e9e une grande affiche pour {lieu} avec les r\u00e8gles d'or contre les microbes. R\u00e8gle 1 : se laver les mains avant de manger et apr\u00e8s \u00eatre all\u00e9 aux toilettes. R\u00e8gle 2 : \u00e9ternuer et tousser dans son coude, pas dans ses mains. R\u00e8gle 3 : ne pas partager sa bouteille d'eau ou sa cuill\u00e8re. R\u00e8gle 4 : utiliser un mouchoir en papier et le jeter tout de suite. R\u00e8gle 5 : si on est malade, on reste \u00e0 la maison pour ne pas contaminer les autres. Tout le monde recopie les r\u00e8gles." },
+        { title: 'Tom est malade', emoji: '\uD83E\uDD12', text: "Apr\u00e8s la r\u00e9cr\u00e9ation, Tom ne se sent pas bien. Il est tout p\u00e2le et a mal au ventre. \"J'ai mal...\" murmure-t-il. La ma\u00eetresse l'emm\u00e8ne se reposer. {personnage} s'inqui\u00e8te pour son copain. \"Il va gu\u00e9rir ?\", demande {personnage}. \"Oui, la gastro dure deux ou trois jours. Le corps se d\u00e9fend tout seul gr\u00e2ce aux globules blancs, les petits soldats du sang. Il faut boire beaucoup d'eau et se reposer.\" {personnage} envoie un dessin \u00e0 Tom avec {objet} dessin\u00e9 dessus pour lui remonter le moral." },
+        { title: "L'exp\u00e9rience du pain", emoji: '\uD83C\uDF5E', text: "La ma\u00eetresse propose une exp\u00e9rience \u00e0 faire sur plusieurs jours. Elle prend trois tranches de pain. La premi\u00e8re, personne ne la touche. La deuxi\u00e8me, un enfant la touche avec des mains sales. La troisi\u00e8me, un enfant la touche avec des mains propres. Chaque tranche va dans un sac en plastique. \"Dans une semaine, on regardera ce qui s'est pass\u00e9.\" {personnage} est impatient de voir le r\u00e9sultat. {objet} surveille les sacs depuis le rebord de la fen\u00eatre." },
+        { title: 'Le r\u00e9sultat', emoji: '\uD83D\uDD2C', text: "Une semaine plus tard, les enfants regardent les tranches de pain. La premi\u00e8re est presque intacte. La troisi\u00e8me, touch\u00e9e avec des mains propres, a un petit peu de moisissure. Mais la deuxi\u00e8me, touch\u00e9e avec des mains sales... elle est couverte de moisissure verte et noire ! \"BEURK !\" crient tous les enfants. \"Voil\u00e0 ce que font les microbes des mains sales\", dit la ma\u00eetresse. {personnage} regarde ses mains. \"Je ne toucherai PLUS JAMAIS rien sans me laver les mains !\"" },
+        { title: 'Le retour des copains', emoji: '\uD83C\uDF89', text: "Petit \u00e0 petit, les enfants malades reviennent \u00e0 {lieu}. L\u00e9a est de retour, Hugo aussi, et m\u00eame la dame de la cantine ! Tom arrive le dernier avec un grand sourire. \"Mon ventre va beaucoup mieux !\" {personnage} est tellement content de retrouver tout le monde. Mais cette fois, pas de bisous : on se fait des \"check\" du coude ! Toute la classe montre les affiches avec les r\u00e8gles d'hygi\u00e8ne. {objet} est accroch\u00e9 pr\u00e8s du lavabo comme mascotte." },
+        { title: 'Les gardiens de la sant\u00e9', emoji: '\uD83C\uDF1F', text: "Ce soir, {personnage} rentre \u00e0 la maison et va directement se laver les mains. Maman est surprise. \"Eh bien ! Quel changement !\" {personnage} explique tout : les microbes invisibles, le savon super-h\u00e9ros, l'exp\u00e9rience du pain. \"Les mains propres, c'est la meilleure protection contre les maladies !\" {personnage} se couche avec {objet} et sourit. Les microbes sont partout, mais avec du savon, de l'eau et de bonnes habitudes, on peut les arr\u00eater. Bonne nuit, petit gardien de la sant\u00e9 !" }
+      ],
+      // Template 2 — L'assiette arc-en-ciel
+      [
+        { title: 'Le go\u00fbter de Th\u00e9o', emoji: '\uD83C\uDF6C', text: "\u00c0 {lieu}, c'est l'heure du go\u00fbter. {personnage} d\u00e9balle son sac. Mais Th\u00e9o, \u00e0 c\u00f4t\u00e9, a un go\u00fbter tr\u00e8s sp\u00e9cial : des bonbons, des chips, un soda et une barre chocolat\u00e9e. \"Moi, je ne mange QUE des trucs bons !\", dit Th\u00e9o fi\u00e8rement. {personnage} regarde sa pomme et son morceau de pain. \"\u00c7a a l'air moins bien...\" pense {personnage} en serrant {objet}. Mais est-ce que les bonbons sont vraiment meilleurs que les pommes ?" },
+        { title: 'Le ventre de Th\u00e9o', emoji: '\uD83E\uDD22', text: "Apr\u00e8s le go\u00fbter, Th\u00e9o ne se sent pas bien. Son ventre gargouille bizarrement. Il est fatigu\u00e9 et n'arrive pas \u00e0 se concentrer. \"J'ai mal au ventre...\", se plaint Th\u00e9o. \"C'est peut-\u00eatre tout le sucre que tu as mang\u00e9\", dit {personnage}. \"N'importe quoi ! Le sucre c'est d\u00e9licieux, \u00e7a peut pas rendre malade !\" Mais Th\u00e9o reste pli\u00e9 en deux. {objet} semble l'observer avec attention." },
+        { title: "L'id\u00e9e de la cuisine", emoji: '\uD83C\uDF73', text: "Le lendemain, {personnage} a une id\u00e9e g\u00e9niale. \"Et si on cuisinait ensemble, Th\u00e9o ? On pourrait faire un go\u00fbter qui est BON et qui fait du BIEN au corps !\" Th\u00e9o fait la grimace. \"Cuisiner ? Avec des l\u00e9gumes ? BEURK !\" Mais {personnage} insiste. \"Tu verras, \u00e7a peut \u00eatre amusant !\" Maman de {personnage} propose de les accueillir \u00e0 la maison. {objet} est d\u00e9j\u00e0 install\u00e9 dans la cuisine, pr\u00eat pour l'aventure." },
+        { title: 'Le march\u00e9 des couleurs', emoji: '\uD83E\uDD55', text: "D'abord, direction le march\u00e9 ! {personnage} et Th\u00e9o d\u00e9couvrent un monde de couleurs. Les tomates sont rouges comme des rubis. Les carottes sont orange comme le soleil couchant. Les courgettes sont vertes comme l'herbe. Les aubergines sont violettes. Les bananes sont jaunes. \"C'est joli\", admet Th\u00e9o. Le marchand leur fait go\u00fbter une fraise. Th\u00e9o croque et ses yeux s'ouvrent grands. \"C'est SUCR\u00c9 ! Comme un bonbon, mais en mieux !\" {personnage} sourit." },
+        { title: 'Les mains dans la p\u00e2te', emoji: '\uD83E\uDD5A', text: "De retour \u00e0 la maison, {personnage} et Th\u00e9o enfilent des tabliers. Maman leur montre comment couper les l\u00e9gumes en morceaux (avec un couteau \u00e0 bout rond, la s\u00e9curit\u00e9 d'abord !). Th\u00e9o r\u00e2pe des carottes. \u00c7a fait des petits serpentins orange. Il \u00e9crase des bananes. \"C'est rigolo, \u00e7a fait une pur\u00e9e collante !\" Ils m\u00e9langent de la farine, des oeufs et des l\u00e9gumes r\u00e2p\u00e9s. {objet} est pos\u00e9 sur le plan de travail. Th\u00e9o s'amuse comme un fou." },
+        { title: 'La d\u00e9gustation', emoji: '\uD83D\uDE0B', text: "Les galettes de l\u00e9gumes sortent du four. Elles sont dor\u00e9es et sentent tr\u00e8s bon. Th\u00e9o h\u00e9site. Il prend une toute petite bouch\u00e9e. Il m\u00e2che lentement. Son visage change. \"C'est... c'est BON !\" Il reprend un morceau, puis un autre. \"La carotte est sucr\u00e9e ! Et la courgette, on la sent presque pas mais \u00e7a rend le g\u00e2teau moelleux !\" {personnage} est ravi. \"Tu vois, les l\u00e9gumes ne sont pas d\u00e9go\u00fbtants quand on les cuisine soi-m\u00eame !\"" },
+        { title: "L'assiette arc-en-ciel", emoji: '\uD83C\uDF08', text: "Maman explique le secret de la bonne alimentation : \"L'assiette arc-en-ciel ! Plus il y a de couleurs dans ton assiette, plus ton corps re\u00e7oit de bonnes choses. Le rouge des tomates prot\u00e8ge le coeur. L'orange des carottes aide les yeux. Le vert des brocolis renforce les os. Le blanc du lait donne du calcium. Le marron du pain donne de l'\u00e9nergie qui dure longtemps.\" Th\u00e9o regarde son assiette. \"\u00c7a veut dire que les bonbons, c'est quelle couleur ?\" \"Aucune vraie couleur. C'est juste du sucre color\u00e9.\"" },
+        { title: 'Le d\u00e9fi de la semaine', emoji: '\uD83D\uDCAA', text: "{personnage} et Th\u00e9o d\u00e9cident de se lancer un d\u00e9fi : go\u00fbter un nouvel aliment chaque jour pendant une semaine. Lundi : du brocoli. Th\u00e9o fait la grimace mais mange un morceau. \"C'est pas terrible, mais c'est pas d\u00e9go\u00fbtant.\" Mardi : de la betterave. \"C'est sucr\u00e9, j'aime bien !\" Mercredi : du poisson. \"Mmm, avec du citron, c'est g\u00e9nial !\" Chaque jour, Th\u00e9o d\u00e9couvre un nouveau go\u00fbt. {objet} note les progr\u00e8s sur un petit carnet imaginaire." },
+        { title: 'Le nouveau go\u00fbter', emoji: '\uD83C\uDF4E', text: "Vendredi, \u00e0 {lieu}, c'est l'heure du go\u00fbter. Th\u00e9o sort de son sac... une pomme, du pain complet avec du fromage, et de l'eau. Les autres enfants sont stup\u00e9faits. \"Th\u00e9o ? Tu manges une POMME ?!\" Th\u00e9o croque fi\u00e8rement. \"Les pommes, c'est comme des bonbons de la nature, mais en mieux. \u00c7a donne de l'\u00e9nergie qui dure, pas juste cinq minutes.\" {personnage} sourit. {objet} brille de fiert\u00e9 \u00e0 c\u00f4t\u00e9." },
+        { title: 'Le chef cuisinier', emoji: '\uD83C\uDF1F', text: "Ce soir, Th\u00e9o demande \u00e0 ses parents de cuisiner ensemble. \"Je veux une assiette arc-en-ciel !\" Ses parents n'en reviennent pas. {personnage} rentre \u00e0 la maison et s'installe avec {objet}. On n'a pas besoin de tout aimer du premier coup. Parfois, il faut go\u00fbter deux fois, trois fois, dix fois. Et quand on cuisine soi-m\u00eame, les l\u00e9gumes deviennent des amis. Chaque bouchee est une aventure pour les papilles. Bonne nuit, petit chef cuisinier !" }
+      ],
+      // Template 3 — La nuit de la marmotte
+      [
+        { title: 'Encore cinq minutes', emoji: '\u23F0', text: "\"Au lit !\" dit Maman. \"NON ! Encore cinq minutes !\" crie {personnage}. Il est 20 heures \u00e0 {lieu} et {personnage} ne veut absolument PAS dormir. Il y a tellement de choses \u00e0 faire ! Jouer, regarder un dessin anim\u00e9, lire une histoire... {personnage} n\u00e9gocie : \"Cinq minutes de plus ?\" Maman soupire. \"Tu dis \u00e7a tous les soirs.\" {objet} est d\u00e9j\u00e0 sur la table de nuit, mais {personnage} ne veut pas le rejoindre." },
+        { title: 'La nuit blanche', emoji: '\uD83D\uDCF1', text: "{personnage} r\u00e9ussit \u00e0 rester \u00e9veill\u00e9 tr\u00e8s tard en cachette. Il regarde une vid\u00e9o sur une tablette sous la couette. Les \u00e9crans \u00e9mettent une lumi\u00e8re bleue sp\u00e9ciale qui dit au cerveau : \"C'est encore le jour, ne dors pas !\" R\u00e9sultat : \u00e0 23 heures, {personnage} est toujours \u00e9veill\u00e9, les yeux grands ouverts dans le noir. Le coeur bat vite. Le cerveau tourne \u00e0 toute vitesse. Impossible de s'endormir. {objet} attend patiemment sur la table de nuit." },
+        { title: 'Le lendemain terrible', emoji: '\uD83D\uDE34', text: "Le r\u00e9veil sonne. {personnage} a dormi seulement quatre heures au lieu de dix. Tout est difficile. Les yeux piquent. Les jambes sont lourdes comme du plomb. Le bol de c\u00e9r\u00e9ales tombe de la table. \"OUPS.\" \u00c0 {lieu}, {personnage} n'arrive pas \u00e0 se concentrer. Les lettres dansent sur le cahier. La ma\u00eetresse parle mais les mots se m\u00e9langent. {personnage} s'endort sur le bureau. La t\u00eate tombe : BONK. \"R\u00e9veille-toi !\" dit le voisin de table." },
+        { title: 'Les co\u00e8res', emoji: '\uD83D\uDE21', text: "Sans sommeil, tout \u00e9nerve {personnage}. Le copain qui parle trop fort : \"\u00c7A SUFFIT !\" La queue \u00e0 la cantine : \"C'est TROP LONG !\" Le jeu qui ne marche pas : \"C'est NUL !\" {personnage} crie sur tout le monde et finit par pleurer sans raison dans un coin de la cour. {objet} est rest\u00e9 dans le cartable. {personnage} se sent vraiment mal. Pourquoi est-ce que tout va si mal aujourd'hui ? La r\u00e9ponse est simple : le manque de sommeil rend grognon, triste et maladroit." },
+        { title: "L'infirmier explique", emoji: '\uD83D\uDC68\u200D\u2695\uFE0F', text: "L'infirmier de l'\u00e9cole s'assoit avec {personnage}. \"Tu n'as pas assez dormi, n'est-ce pas ?\" {personnage} baisse la t\u00eate. \"Le sommeil, c'est le super-pouvoir du corps. Quand tu dors, ton cerveau range les souvenirs de la journ\u00e9e, comme si tu rangeais ta chambre. Tes muscles se r\u00e9parent et grandissent. Ton coeur ralentit pour se reposer. Tes os poussent. Oui, tu GRANDIS en dormant !\" {personnage} \u00e9carquille les yeux. \"Pour de vrai ?\"" },
+        { title: 'Le rituel du soir', emoji: '\uD83D\uDECC', text: "L'infirmier donne \u00e0 {personnage} un plan pour mieux dormir. \"\u00c9tape 1 : \u00e9teindre les \u00e9crans une heure avant le coucher. La lumi\u00e8re bleue emp\u00eache de dormir. \u00c9tape 2 : prendre un bain ti\u00e8de pour d\u00e9tendre le corps. \u00c9tape 3 : mettre son pyjama pr\u00e9f\u00e9r\u00e9. \u00c9tape 4 : se brosser les dents, toujours du rose vers le blanc, de la gencive vers la dent. \u00c9tape 5 : lire une histoire ou en \u00e9couter une. \u00c9tape 6 : un gros c\u00e2lin. \u00c9tape 7 : fermer les yeux et penser \u00e0 un endroit calme et joli.\" {personnage} note tout avec {objet} \u00e0 c\u00f4t\u00e9." },
+        { title: 'Le premier soir', emoji: '\uD83C\uDF19', text: "Ce soir, {personnage} essaie le rituel. Pas de tablette ! \u00c0 la place, un bain chaud avec des bulles. Les muscles se d\u00e9tendent. Puis le pyjama tout doux. Puis Maman lit une histoire. La voix de Maman est douce et r\u00e9guli\u00e8re. Les yeux deviennent lourds. Le corps s'enfonce dans le matelas. {objet} est bien cal\u00e9 contre l'oreiller. \"Bonne nuit\", murmure Maman. \"Bonne nuit\", r\u00e9pond {personnage} en b\u00e2illant. Les paupi\u00e8res se ferment toutes seules... c'est magique." },
+        { title: 'Le matin champion', emoji: '\uD83C\uDF1E', text: "DRING ! Le r\u00e9veil sonne. Mais cette fois, {personnage} se r\u00e9veille en pleine forme ! Les yeux s'ouvrent facilement. Les jambes sont l\u00e9g\u00e8res. Le petit-d\u00e9jeuner a bon go\u00fbt. \u00c0 {lieu}, tout semble plus facile. Les lettres restent en place sur le cahier. La ma\u00eetresse est int\u00e9ressante. Le jeu est amusant. Et surtout, {personnage} ne crie sur personne ! \"Tu as l'air en forme aujourd'hui !\", dit le copain. \"J'ai dormi dix heures !\", r\u00e9pond fi\u00e8rement {personnage}." },
+        { title: 'Le tableau du sommeil', emoji: '\uD83D\uDCC5', text: "{personnage} cr\u00e9e un tableau du sommeil acccroch\u00e9 dans la chambre. Chaque soir o\u00f9 le rituel est respect\u00e9, {personnage} colle une \u00e9toile. Au bout de sept \u00e9toiles, c'est une semaine de champion du sommeil ! Les copains veulent aussi faire un tableau. \u00c0 {lieu}, tout le monde parle du sommeil. \"Moi je dors avec mon doudou.\" \"Moi j'\u00e9coute de la musique douce.\" \"Moi ma maman me chante une chanson.\" Chacun a son rituel et c'est tr\u00e8s bien. {objet} a une place d'honneur sur la table de nuit." },
+        { title: 'Le r\u00eave du courage', emoji: '\uD83C\uDF1F', text: "Ce soir, {personnage} fait son rituel avec le sourire. Bain, pyjama, dents, histoire, c\u00e2lin. Les yeux se ferment doucement. {objet} est tout pr\u00e8s. Le corps est lourd et d\u00e9tendu. Le cerveau commence \u00e0 ranger les souvenirs du jour. Et puis... les r\u00eaves arrivent. De beaux r\u00eaves color\u00e9s o\u00f9 {personnage} vole au-dessus de {lieu}. Le sommeil n'est pas du temps perdu. C'est du temps gagn\u00e9 pour grandir, pour \u00eatre heureux et pour r\u00eaver. Bonne nuit, petit champion du sommeil !" }
+      ]
+    ]
+  }
+};
+
+const UNIVERSE_ORDER = ['pirates', 'quotidien', 'magie', 'robots', 'espace', 'sante'];
+
+/* ====================================================================
+   STATE
+   ==================================================================== */
+let state = {
+  universe: null,
+  characterIdx: -1,
+  locationIdx: -1,
+  objectIdx: -1,
+  currentPage: 0,
+  currentScreen: 'welcome'
+};
+
+/* ====================================================================
+   NAVIGATION
+   ==================================================================== */
+function goTo(screenId) {
+  const cur = document.querySelector('.screen.active');
+  if (cur) { cur.classList.remove('active'); cur.classList.add('exit-left'); }
+  const next = document.getElementById(screenId);
+  next.classList.remove('exit-left');
+  // Force reflow
+  void next.offsetWidth;
+  next.classList.add('active');
+  state.currentScreen = screenId;
+
+  if (screenId === 'universe') buildUniverseGrid();
+  if (screenId === 'character') buildChoiceGrid('character');
+  if (screenId === 'location') buildChoiceGrid('location');
+  if (screenId === 'object') buildChoiceGrid('object');
+  if (screenId === 'story-screen') buildStory();
+
+  updateAllProgress();
+}
+
+function goBack(screenId) {
+  const cur = document.querySelector('.screen.active');
+  if (cur) { cur.classList.remove('active'); }
+  const next = document.getElementById(screenId);
+  next.classList.remove('exit-left');
+  next.classList.add('active');
+  state.currentScreen = screenId;
+}
+
+function restart() {
+  state = { universe: null, characterIdx: -1, locationIdx: -1, objectIdx: -1, currentPage: 0, currentScreen: 'welcome' };
+  document.documentElement.style.setProperty('--universe-color', '#f39c12');
+  goTo('welcome');
+}
+
+/* ====================================================================
+   PROGRESS BAR
+   ==================================================================== */
+function updateAllProgress() {
+  const steps = ['universe', 'character', 'location', 'object'];
+  const screenToStep = { universe: 0, character: 1, location: 2, object: 3 };
+  const currentStep = screenToStep[state.currentScreen] ?? -1;
+
+  steps.forEach(s => {
+    const bar = document.getElementById('prog-' + s);
+    if (!bar) return;
+    const idx = screenToStep[s];
+    bar.innerHTML = '';
+    for (let i = 0; i < 4; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'progress-dot';
+      if (i < idx) dot.classList.add('done');
+      else if (i === idx) dot.classList.add('current');
+      bar.appendChild(dot);
+    }
+  });
+}
+
+/* ====================================================================
+   UNIVERSE GRID
+   ==================================================================== */
+function buildUniverseGrid() {
+  const grid = document.getElementById('universe-grid');
+  grid.innerHTML = '';
+  UNIVERSE_ORDER.forEach(key => {
+    const u = DATA[key];
+    const card = document.createElement('div');
+    card.className = 'choice-card';
+    card.style.borderColor = 'transparent';
+    card.innerHTML = `<span class="emoji">${u.emoji}</span><span class="label">${u.name}</span>`;
+    card.onclick = () => {
+      state.universe = key;
+      document.documentElement.style.setProperty('--universe-color', u.color);
+      goTo('character');
+    };
+    grid.appendChild(card);
+  });
+}
+
+/* ====================================================================
+   CHOICE GRIDS (character, location, object)
+   ==================================================================== */
+function buildChoiceGrid(type) {
+  const grid = document.getElementById(type + '-grid');
+  const u = DATA[state.universe];
+  grid.innerHTML = '';
+
+  let items, nextScreen, stateKey;
+  if (type === 'character') { items = u.personnages; nextScreen = 'location'; stateKey = 'characterIdx'; }
+  else if (type === 'location') { items = u.lieux; nextScreen = 'object'; stateKey = 'locationIdx'; }
+  else { items = u.objets; nextScreen = 'story-screen'; stateKey = 'objectIdx'; }
+
+  items.forEach((item, idx) => {
+    const card = document.createElement('div');
+    card.className = 'choice-card';
+    card.innerHTML = `<span class="emoji">${item.emoji}</span><span class="label">${item.name}</span>`;
+    card.onclick = () => {
+      state[stateKey] = idx;
+      grid.querySelectorAll('.choice-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      setTimeout(() => goTo(nextScreen), 300);
+    };
+    grid.appendChild(card);
+  });
+}
+
+/* ====================================================================
+   ILLUSTRATION GENERATOR
+   ==================================================================== */
+function generateIllustration(emoji, universeId, universeColor, pageIndex) {
+  // Seeded pseudo-random number generator
+  function seededRandom(seed) {
+    let s = seed;
+    return function() {
+      s = (s * 9301 + 49297) % 233280;
+      return s / 233280;
+    };
+  }
+
+  // Create a seed from pageIndex and universeId
+  let seedVal = pageIndex * 1000;
+  for (let i = 0; i < universeId.length; i++) {
+    seedVal += universeId.charCodeAt(i) * (i + 1);
+  }
+  const rng = seededRandom(seedVal);
+
+  // Lighter shade of universe color for background
+  function lightenColor(hex, amount) {
+    const r = parseInt(hex.slice(1,3), 16);
+    const g = parseInt(hex.slice(3,5), 16);
+    const b = parseInt(hex.slice(5,7), 16);
+    const lr = Math.min(255, r + (255 - r) * amount);
+    const lg = Math.min(255, g + (255 - g) * amount);
+    const lb = Math.min(255, b + (255 - b) * amount);
+    return `rgb(${Math.round(lr)},${Math.round(lg)},${Math.round(lb)})`;
+  }
+
+  const bgColor = lightenColor(universeColor, 0.82);
+  const accentLight = lightenColor(universeColor, 0.6);
+  const accentMed = lightenColor(universeColor, 0.35);
+
+  // Helper to get random position in margins (avoiding center where emoji is)
+  function randX() { return 20 + rng() * 240; }
+  function randY() { return 15 + rng() * 150; }
+  function randSmall() { return 6 + rng() * 10; }
+  function randOpacity() { return (0.25 + rng() * 0.45).toFixed(2); }
+
+  // Decorative element generators per universe
+  const DECORATIONS = {
+    pirates: function() {
+      const elems = [];
+      // Waves at bottom
+      const wy = 140 + rng() * 25;
+      elems.push(`<path d="M0,${wy} Q35,${wy-12} 70,${wy} T140,${wy} T210,${wy} T280,${wy}" fill="none" stroke="${accentMed}" stroke-width="2.5" opacity="0.5"/>`);
+      elems.push(`<path d="M0,${wy+10} Q35,${wy-2} 70,${wy+10} T140,${wy+10} T210,${wy+10} T280,${wy+10}" fill="none" stroke="${accentLight}" stroke-width="2" opacity="0.4"/>`);
+      // Small fish
+      for (let i = 0; i < 3; i++) {
+        const fx = 20 + rng() * 240, fy = 130 + rng() * 40;
+        const fs = 5 + rng() * 4;
+        const dir = rng() > 0.5 ? 1 : -1;
+        elems.push(`<g transform="translate(${fx},${fy}) scale(${dir},1)" opacity="${randOpacity()}"><ellipse cx="0" cy="0" rx="${fs}" ry="${fs*0.5}" fill="${accentMed}"/><polygon points="${-fs-3},0 ${-fs-7},-3 ${-fs-7},3" fill="${accentMed}"/><circle cx="${fs*0.4}" cy="${-fs*0.15}" r="1" fill="white"/></g>`);
+      }
+      // Clouds
+      for (let i = 0; i < 2; i++) {
+        const cx = 30 + rng() * 220, cy = 15 + rng() * 30;
+        const cs = 10 + rng() * 8;
+        elems.push(`<g opacity="0.3"><circle cx="${cx}" cy="${cy}" r="${cs}" fill="white"/><circle cx="${cx+cs*0.8}" cy="${cy}" r="${cs*0.7}" fill="white"/><circle cx="${cx-cs*0.6}" cy="${cy+1}" r="${cs*0.6}" fill="white"/></g>`);
+      }
+      // Anchor
+      const ax = rng() > 0.5 ? 20 + rng()*30 : 230 + rng()*30;
+      const ay = 30 + rng() * 40;
+      elems.push(`<g transform="translate(${ax},${ay})" opacity="0.2"><line x1="0" y1="-8" x2="0" y2="8" stroke="${accentMed}" stroke-width="2"/><line x1="-6" y1="-8" x2="6" y2="-8" stroke="${accentMed}" stroke-width="2"/><path d="M-6,8 Q0,14 6,8" fill="none" stroke="${accentMed}" stroke-width="2"/></g>`);
+      return elems;
+    },
+    quotidien: function() {
+      const elems = [];
+      // Sun or moon
+      if (rng() > 0.4) {
+        const sx = 30 + rng() * 40, sy = 20 + rng() * 15;
+        elems.push(`<circle cx="${sx}" cy="${sy}" r="14" fill="#FFEAA7" opacity="0.6"/>`);
+        for (let r = 0; r < 6; r++) {
+          const angle = r * 60 * Math.PI / 180;
+          const rx1 = sx + Math.cos(angle) * 18, ry1 = sy + Math.sin(angle) * 18;
+          const rx2 = sx + Math.cos(angle) * 23, ry2 = sy + Math.sin(angle) * 23;
+          elems.push(`<line x1="${rx1}" y1="${ry1}" x2="${rx2}" y2="${ry2}" stroke="#FFEAA7" stroke-width="2" opacity="0.5" stroke-linecap="round"/>`);
+        }
+      } else {
+        elems.push(`<circle cx="240" cy="25" r="12" fill="#F8F1D8" opacity="0.5"/><circle cx="236" cy="21" r="10" fill="${bgColor}"/>`);
+      }
+      // Houses
+      for (let i = 0; i < 2; i++) {
+        const hx = (i === 0 ? 15 + rng()*40 : 220 + rng()*40), hy = 135 + rng() * 15;
+        const hw = 16 + rng() * 8, hh = 14 + rng() * 6;
+        const roofColor = rng() > 0.5 ? '#E8A87C' : '#D4A5A5';
+        elems.push(`<g opacity="0.35"><rect x="${hx}" y="${hy}" width="${hw}" height="${hh}" fill="${accentLight}" rx="2"/><polygon points="${hx-3},${hy} ${hx+hw/2},${hy-hh*0.6} ${hx+hw+3},${hy}" fill="${roofColor}"/><rect x="${hx+hw*0.35}" y="${hy+hh*0.4}" width="${hw*0.3}" height="${hh*0.55}" fill="${accentMed}" rx="1"/></g>`);
+      }
+      // Trees
+      for (let i = 0; i < 3; i++) {
+        const tx = 60 + rng() * 160, ty = 130 + rng() * 20;
+        const ts = 6 + rng() * 5;
+        elems.push(`<g opacity="0.3"><rect x="${tx-1.5}" y="${ty}" width="3" height="${ts}" fill="#A68B6B" rx="1"/><circle cx="${tx}" cy="${ty-ts*0.3}" r="${ts*0.8}" fill="#A8D8A8"/></g>`);
+      }
+      // Flowers
+      for (let i = 0; i < 4; i++) {
+        const fx = 25 + rng() * 230, fy = 150 + rng() * 20;
+        const fc = ['#FFB7B2','#FFDAC1','#B5EAD7','#C7CEEA'][Math.floor(rng()*4)];
+        elems.push(`<g opacity="0.4"><circle cx="${fx}" cy="${fy}" r="3" fill="${fc}"/><circle cx="${fx}" cy="${fy}" r="1.5" fill="#FFEAA7"/><line x1="${fx}" y1="${fy+3}" x2="${fx}" y2="${fy+8}" stroke="#A8D8A8" stroke-width="1"/></g>`);
+      }
+      return elems;
+    },
+    magie: function() {
+      const elems = [];
+      // Stars (5-pointed)
+      function star5(cx, cy, r, fill, op) {
+        let pts = '';
+        for (let i = 0; i < 5; i++) {
+          const aOuter = (i * 72 - 90) * Math.PI / 180;
+          const aInner = ((i * 72) + 36 - 90) * Math.PI / 180;
+          pts += `${cx + Math.cos(aOuter)*r},${cy + Math.sin(aOuter)*r} `;
+          pts += `${cx + Math.cos(aInner)*r*0.4},${cy + Math.sin(aInner)*r*0.4} `;
+        }
+        return `<polygon points="${pts.trim()}" fill="${fill}" opacity="${op}"/>`;
+      }
+      for (let i = 0; i < 5; i++) {
+        const sx = 15 + rng() * 250, sy = 10 + rng() * 155;
+        const sr = 4 + rng() * 7;
+        const sc = ['#FFEAA7','#DDA0DD','#FFD700','#E8D5F5'][Math.floor(rng()*4)];
+        elems.push(star5(sx, sy, sr, sc, (0.3 + rng()*0.35).toFixed(2)));
+      }
+      // Sparkle dots
+      for (let i = 0; i < 8; i++) {
+        const dx = 10 + rng() * 260, dy = 8 + rng() * 164;
+        const dr = 1 + rng() * 2.5;
+        elems.push(`<circle cx="${dx}" cy="${dy}" r="${dr}" fill="white" opacity="${(0.3+rng()*0.5).toFixed(2)}"/>`);
+      }
+      // Swirl paths
+      for (let i = 0; i < 2; i++) {
+        const sx = 30 + rng() * 220, sy = 30 + rng() * 120;
+        const spread = 15 + rng() * 15;
+        elems.push(`<path d="M${sx},${sy} Q${sx+spread},${sy-spread} ${sx+spread*2},${sy} T${sx+spread*3},${sy+spread*0.5}" fill="none" stroke="${accentLight}" stroke-width="1.5" opacity="0.3" stroke-linecap="round"/>`);
+      }
+      // Crescent moon
+      const mx = 220 + rng() * 40, my = 15 + rng() * 25;
+      elems.push(`<circle cx="${mx}" cy="${my}" r="10" fill="#FFEAA7" opacity="0.35"/><circle cx="${mx+4}" cy="${my-2}" r="9" fill="${bgColor}"/>`);
+      return elems;
+    },
+    robots: function() {
+      const elems = [];
+      // Gears
+      for (let i = 0; i < 3; i++) {
+        const gx = 20 + rng() * 240, gy = 15 + rng() * 150;
+        const gr = 7 + rng() * 8;
+        const teeth = 6 + Math.floor(rng() * 3);
+        let gearPath = '';
+        for (let t = 0; t < teeth; t++) {
+          const a1 = (t / teeth) * Math.PI * 2;
+          const a2 = a1 + (0.3 / teeth) * Math.PI * 2;
+          const a3 = a1 + (0.5 / teeth) * Math.PI * 2;
+          const a4 = a1 + (0.8 / teeth) * Math.PI * 2;
+          gearPath += `${t===0?'M':'L'}${gx+Math.cos(a1)*gr},${gy+Math.sin(a1)*gr} `;
+          gearPath += `L${gx+Math.cos(a2)*(gr+4)},${gy+Math.sin(a2)*(gr+4)} `;
+          gearPath += `L${gx+Math.cos(a3)*(gr+4)},${gy+Math.sin(a3)*(gr+4)} `;
+          gearPath += `L${gx+Math.cos(a4)*gr},${gy+Math.sin(a4)*gr} `;
+        }
+        gearPath += 'Z';
+        elems.push(`<path d="${gearPath}" fill="${accentMed}" opacity="${(0.2+rng()*0.2).toFixed(2)}"/><circle cx="${gx}" cy="${gy}" r="${gr*0.3}" fill="${bgColor}" opacity="0.5"/>`);
+      }
+      // Lightning bolts
+      for (let i = 0; i < 2; i++) {
+        const bx = 30 + rng() * 220, by = 20 + rng() * 100;
+        elems.push(`<polygon points="${bx},${by} ${bx+5},${by+8} ${bx+2},${by+8} ${bx+6},${by+18} ${bx+1},${by+10} ${bx+4},${by+10}" fill="#FFEAA7" opacity="0.35"/>`);
+      }
+      // Circuit squares
+      for (let i = 0; i < 5; i++) {
+        const sx = 15 + rng() * 250, sy = 10 + rng() * 160;
+        const ss = 3 + rng() * 4;
+        elems.push(`<rect x="${sx}" y="${sy}" width="${ss}" height="${ss}" fill="${accentLight}" opacity="${(0.2+rng()*0.3).toFixed(2)}" rx="1"/>`);
+      }
+      // Circuit lines
+      for (let i = 0; i < 3; i++) {
+        const lx = 20 + rng() * 240, ly = 20 + rng() * 140;
+        const ll = 20 + rng() * 30;
+        const vert = rng() > 0.5;
+        if (vert) {
+          elems.push(`<line x1="${lx}" y1="${ly}" x2="${lx}" y2="${ly+ll}" stroke="${accentMed}" stroke-width="1" opacity="0.15"/>`);
+        } else {
+          elems.push(`<line x1="${lx}" y1="${ly}" x2="${lx+ll}" y2="${ly}" stroke="${accentMed}" stroke-width="1" opacity="0.15"/>`);
+        }
+      }
+      return elems;
+    },
+    espace: function() {
+      const elems = [];
+      // Nebula gradient circles
+      for (let i = 0; i < 2; i++) {
+        const nx = 30 + rng() * 220, ny = 20 + rng() * 140;
+        const nr = 25 + rng() * 20;
+        const nc = ['#DDA0DD','#87CEEB','#DEB887'][Math.floor(rng()*3)];
+        elems.push(`<circle cx="${nx}" cy="${ny}" r="${nr}" fill="${nc}" opacity="0.12"/>`);
+      }
+      // Planets with rings
+      for (let i = 0; i < 2; i++) {
+        const px = (i === 0 ? 20 + rng()*60 : 200 + rng()*60);
+        const py = 25 + rng() * 120;
+        const pr = 8 + rng() * 10;
+        const pc = ['#E8A87C','#87CEEB','#DDA0DD','#A8D8A8'][Math.floor(rng()*4)];
+        elems.push(`<circle cx="${px}" cy="${py}" r="${pr}" fill="${pc}" opacity="0.35"/>`);
+        if (rng() > 0.4) {
+          elems.push(`<ellipse cx="${px}" cy="${py}" rx="${pr*1.7}" ry="${pr*0.4}" fill="none" stroke="${pc}" stroke-width="1.5" opacity="0.25" transform="rotate(${-20+rng()*40},${px},${py})"/>`);
+        }
+      }
+      // Small stars
+      for (let i = 0; i < 12; i++) {
+        const sx = 5 + rng() * 270, sy = 5 + rng() * 170;
+        const sr = 0.8 + rng() * 2;
+        elems.push(`<circle cx="${sx}" cy="${sy}" r="${sr}" fill="white" opacity="${(0.3+rng()*0.5).toFixed(2)}"/>`);
+      }
+      // Shooting star
+      const ssx = 40 + rng() * 100, ssy = 15 + rng() * 30;
+      elems.push(`<line x1="${ssx}" y1="${ssy}" x2="${ssx+35}" y2="${ssy+15}" stroke="white" stroke-width="1.5" opacity="0.3" stroke-linecap="round"/><circle cx="${ssx}" cy="${ssy}" r="2" fill="white" opacity="0.5"/>`);
+      return elems;
+    },
+    sante: function() {
+      const elems = [];
+      // Hearts
+      for (let i = 0; i < 4; i++) {
+        const hx = 15 + rng() * 250, hy = 15 + rng() * 150;
+        const hs = 4 + rng() * 5;
+        const hc = ['#FFB7B2','#FF6B6B','#FFA07A','#E8A87C'][Math.floor(rng()*4)];
+        elems.push(`<path d="M${hx},${hy+hs*0.3} C${hx},${hy-hs*0.3} ${hx-hs},${hy-hs*0.3} ${hx-hs},${hy+hs*0.1} C${hx-hs},${hy+hs*0.5} ${hx},${hy+hs} ${hx},${hy+hs} C${hx},${hy+hs} ${hx+hs},${hy+hs*0.5} ${hx+hs},${hy+hs*0.1} C${hx+hs},${hy-hs*0.3} ${hx},${hy-hs*0.3} ${hx},${hy+hs*0.3}Z" fill="${hc}" opacity="${(0.25+rng()*0.3).toFixed(2)}"/>`);
+      }
+      // Plus signs
+      for (let i = 0; i < 3; i++) {
+        const px = 20 + rng() * 240, py = 15 + rng() * 150;
+        const ps = 4 + rng() * 4;
+        elems.push(`<g opacity="${(0.2+rng()*0.25).toFixed(2)}"><rect x="${px-ps}" y="${py-ps*0.3}" width="${ps*2}" height="${ps*0.6}" fill="${accentMed}" rx="1.5"/><rect x="${px-ps*0.3}" y="${py-ps}" width="${ps*0.6}" height="${ps*2}" fill="${accentMed}" rx="1.5"/></g>`);
+      }
+      // Leaves
+      for (let i = 0; i < 3; i++) {
+        const lx = 25 + rng() * 230, ly = 20 + rng() * 140;
+        const ls = 5 + rng() * 5;
+        elems.push(`<ellipse cx="${lx}" cy="${ly}" rx="${ls}" ry="${ls*0.4}" fill="#A8D8A8" opacity="${(0.25+rng()*0.3).toFixed(2)}" transform="rotate(${-30+rng()*60},${lx},${ly})"/>`);
+      }
+      // Small circles (pills)
+      for (let i = 0; i < 4; i++) {
+        const cx = 15 + rng() * 250, cy = 10 + rng() * 160;
+        const cr = 2 + rng() * 3;
+        const cc = ['#FFB7B2','#B5EAD7','#FFDAC1','#C7CEEA'][Math.floor(rng()*4)];
+        elems.push(`<circle cx="${cx}" cy="${cy}" r="${cr}" fill="${cc}" opacity="${(0.3+rng()*0.3).toFixed(2)}"/>`);
+      }
+      return elems;
+    }
+  };
+
+  // Build SVG
+  const decorFn = DECORATIONS[universeId] || DECORATIONS.quotidien;
+  const decorElems = decorFn();
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 180" width="280" height="180">
+    <rect width="280" height="180" rx="16" fill="${bgColor}"/>
+    ${decorElems.join('\n    ')}
+    <text x="140" y="100" text-anchor="middle" dominant-baseline="central" font-size="72">${emoji}</text>
+  </svg>`;
+
+  return svg;
+}
+
+/* ====================================================================
+   STORY BUILDER
+   ==================================================================== */
+function buildStory() {
+  const u = DATA[state.universe];
+  const personnage = u.personnages[state.characterIdx];
+  const lieu = u.lieux[state.locationIdx];
+  const objet = u.objets[state.objectIdx];
+
+  // Deterministic template selection
+  const templateIdx = (state.characterIdx + state.locationIdx * 2 + state.objectIdx * 3) % u.stories.length;
+  const template = u.stories[templateIdx];
+
+  // Replace placeholders
+  const pages = template.map(p => ({
+    title: p.title,
+    emoji: p.emoji,
+    text: p.text
+      .replace(/\{personnage\}/g, personnage.name)
+      .replace(/\{personnage_emoji\}/g, personnage.emoji)
+      .replace(/\{lieu\}/g, lieu.name)
+      .replace(/\{lieu_emoji\}/g, lieu.emoji)
+      .replace(/\{objet\}/g, objet.name)
+      .replace(/\{objet_emoji\}/g, objet.emoji)
+  }));
+
+  // Title
+  document.getElementById('story-title').textContent = u.emoji + ' ' + u.name;
+  document.querySelector('.story-header').style.background = u.color;
+
+  // Pages
+  const container = document.getElementById('story-pages');
+  container.innerHTML = '';
+  pages.forEach((p, idx) => {
+    const div = document.createElement('div');
+    div.className = 'story-page';
+    const illustrationSvg = generateIllustration(p.emoji, u.id, u.color, idx);
+    div.innerHTML = `<div class="page-illustration">${illustrationSvg}</div><div class="page-title">${p.title}</div><div class="page-text">${p.text}</div>`;
+    container.appendChild(div);
+  });
+
+  // Dots
+  const dots = document.getElementById('page-dots');
+  dots.innerHTML = '';
+  for (let i = 0; i < pages.length; i++) {
+    const span = document.createElement('span');
+    if (i === 0) span.classList.add('active');
+    dots.appendChild(span);
+  }
+
+  state.currentPage = 0;
+  updateStoryNav();
+  container.style.transform = 'translateX(0)';
+
+  // Touch swipe
+  setupSwipe();
+}
+
+function storyNav(dir) {
+  const container = document.getElementById('story-pages');
+  const total = container.children.length;
+  const next = state.currentPage + dir;
+  if (next < 0 || next >= total) return;
+  state.currentPage = next;
+  container.style.transform = `translateX(-${next * 100}%)`;
+  updateStoryNav();
+}
+
+function updateStoryNav() {
+  const total = document.getElementById('story-pages').children.length;
+  document.getElementById('prev-btn').disabled = state.currentPage === 0;
+  document.getElementById('next-btn').disabled = state.currentPage === total - 1;
+  const dots = document.getElementById('page-dots').children;
+  for (let i = 0; i < dots.length; i++) {
+    dots[i].classList.toggle('active', i === state.currentPage);
+  }
+}
+
+/* ====================================================================
+   SWIPE SUPPORT
+   ==================================================================== */
+function setupSwipe() {
+  const vp = document.getElementById('story-viewport');
+  let startX = 0, startY = 0, moved = false;
+
+  vp.ontouchstart = e => { startX = e.touches[0].clientX; startY = e.touches[0].clientY; moved = false; };
+  vp.ontouchmove = e => { moved = true; };
+  vp.ontouchend = e => {
+    if (!moved) return;
+    const dx = e.changedTouches[0].clientX - startX;
+    const dy = e.changedTouches[0].clientY - startY;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) {
+      storyNav(dx < 0 ? 1 : -1);
+    }
+  };
+
+  // Also allow click on left/right halves
+  vp.onclick = e => {
+    const rect = vp.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    if (x < rect.width * 0.3) storyNav(-1);
+    else if (x > rect.width * 0.7) storyNav(1);
+  };
+}
+
+/* ====================================================================
+   INIT
+   ==================================================================== */
+document.addEventListener('DOMContentLoaded', () => {
+  // Ensure only welcome is active
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('welcome').classList.add('active');
+
+  // Register service worker for PWA
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  }
+});
+</script>
+</body>
+</html>
