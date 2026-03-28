@@ -1082,38 +1082,37 @@ function buildStory() {
   const templateIdx = (state.characterIdx + state.locationIdx * 2) % u.stories.length;
   const template = u.stories[templateIdx];
 
-  // French article contractions
-  function contractFr(text) {
-    return text
-      .replace(/à le /g, 'au ')
-      .replace(/à Le /g, 'au ')
-      .replace(/À le /g, 'Au ')
-      .replace(/À Le /g, 'Au ')
-      .replace(/de le /g, 'du ')
-      .replace(/de Le /g, 'du ')
-      .replace(/De le /g, 'Du ')
-      .replace(/De Le /g, 'Du ')
-      .replace(/à les /g, 'aux ')
-      .replace(/à Les /g, 'aux ')
-      .replace(/À les /g, 'Aux ')
-      .replace(/de les /g, 'des ')
-      .replace(/de Les /g, 'des ');
+  // Build contracted lieu forms for French grammar
+  function buildLieuForms(name) {
+    const lc = name.startsWith("L'") || name.startsWith("L\u2019") ? name : name.charAt(0).toLowerCase() + name.slice(1);
+    const forms = { plain: lc };
+    if (lc.startsWith('le ')) {
+      const rest = lc.slice(3);
+      forms.a = 'au ' + rest;    // à le → au
+      forms.de = 'du ' + rest;   // de le → du
+    } else if (lc.startsWith('les ')) {
+      const rest = lc.slice(4);
+      forms.a = 'aux ' + rest;
+      forms.de = 'des ' + rest;
+    } else {
+      forms.a = 'à ' + lc;
+      forms.de = 'de ' + lc;
+    }
+    return forms;
   }
-
-  // Lowercase first letter for in-text use (keeps "L'" as-is)
-  function lcFirst(s) {
-    if (s.startsWith("L'") || s.startsWith("L\u2019")) return s;
-    return s.charAt(0).toLowerCase() + s.slice(1);
-  }
-  const lieuText = lcFirst(lieu.name);
+  const lieuForms = buildLieuForms(lieu.name);
 
   // Replace placeholders
   const pages = template.map(p => ({
     title: p.title,
     emoji: p.emoji,
-    text: contractFr(p.text
+    text: p.text
       .replace(/\{personnage\}/g, personnage.name)
-      .replace(/\{lieu\}/g, lieuText))
+      .replace(/à \{lieu\}/g, lieuForms.a)
+      .replace(/À \{lieu\}/g, lieuForms.a.charAt(0).toUpperCase() + lieuForms.a.slice(1))
+      .replace(/de \{lieu\}/g, lieuForms.de)
+      .replace(/De \{lieu\}/g, lieuForms.de.charAt(0).toUpperCase() + lieuForms.de.slice(1))
+      .replace(/\{lieu\}/g, lieuForms.plain)
   }));
 
   // Title
@@ -1298,12 +1297,27 @@ function updateRecUI(pageIdx) {
   }
 }
 
+// Shared audio element for mobile compatibility
+let sharedAudio = null;
+function getSharedAudio() {
+  if (!sharedAudio) {
+    sharedAudio = new Audio();
+    sharedAudio.setAttribute('playsinline', '');
+    sharedAudio.setAttribute('webkit-playsinline', '');
+  }
+  return sharedAudio;
+}
+
 function playRecording(pageIdx) {
   if (!state.recordings[pageIdx]) return;
+  const audio = getSharedAudio();
+  if (audio._currentUrl) URL.revokeObjectURL(audio._currentUrl);
   const url = URL.createObjectURL(state.recordings[pageIdx]);
-  const audio = new Audio(url);
-  audio.play();
-  audio.onended = () => URL.revokeObjectURL(url);
+  audio._currentUrl = url;
+  audio.src = url;
+  audio.onended = () => { URL.revokeObjectURL(url); audio._currentUrl = null; };
+  const p = audio.play();
+  if (p && p.catch) p.catch(() => {});
 }
 
 function deleteRecording(pageIdx) {
@@ -1350,17 +1364,23 @@ function playPageAudio(pageIdx) {
   const blob = state.recordings[pageIdx];
   if (!blob) { stopPlayAll(); return; }
 
+  const audio = getSharedAudio();
+  if (audio._currentUrl) URL.revokeObjectURL(audio._currentUrl);
   const url = URL.createObjectURL(blob);
-  playAllAudio = new Audio(url);
-  playAllAudio.play();
-  playAllAudio.onended = () => {
+  audio._currentUrl = url;
+  audio.src = url;
+  playAllAudio = audio;
+  audio.onended = () => {
     URL.revokeObjectURL(url);
+    audio._currentUrl = null;
     if (playingAll && pageIdx + 1 < state.recordings.length) {
       setTimeout(() => playPageAudio(pageIdx + 1), 800);
     } else {
       stopPlayAll();
     }
   };
+  const p = audio.play();
+  if (p && p.catch) p.catch(() => {});
 }
 
 function stopPlayAll() {
