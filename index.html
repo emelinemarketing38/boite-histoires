@@ -1318,26 +1318,45 @@ function updateRecUI(pageIdx) {
   }
 }
 
-// Shared audio element for mobile compatibility
+// iOS audio unlock: create a real DOM audio element and unlock it on first user touch
 let sharedAudio = null;
-function getSharedAudio() {
-  if (!sharedAudio) {
-    sharedAudio = new Audio();
-    sharedAudio.setAttribute('playsinline', '');
-    sharedAudio.setAttribute('webkit-playsinline', '');
-  }
-  return sharedAudio;
+let audioUnlocked = false;
+
+function initSharedAudio() {
+  if (sharedAudio) return;
+  sharedAudio = document.createElement('audio');
+  sharedAudio.setAttribute('playsinline', '');
+  sharedAudio.setAttribute('webkit-playsinline', '');
+  sharedAudio.preload = 'auto';
+  document.body.appendChild(sharedAudio);
 }
+
+function unlockAudio() {
+  if (audioUnlocked) return;
+  initSharedAudio();
+  // Play a tiny silent sound to unlock the audio element on iOS
+  sharedAudio.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAABhgFxolQAAAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAABhgFxolQAAAAAAAAAAAAAAAAA';
+  const p = sharedAudio.play();
+  if (p && p.then) {
+    p.then(() => { audioUnlocked = true; sharedAudio.pause(); })
+     .catch(() => {});
+  }
+}
+
+// Unlock audio on first user interaction
+document.addEventListener('touchstart', unlockAudio, { once: true });
+document.addEventListener('click', unlockAudio, { once: true });
 
 function playRecording(pageIdx) {
   if (!state.recordings[pageIdx]) return;
-  const audio = getSharedAudio();
-  if (audio._currentUrl) URL.revokeObjectURL(audio._currentUrl);
+  initSharedAudio();
+  if (sharedAudio._currentUrl) URL.revokeObjectURL(sharedAudio._currentUrl);
   const url = URL.createObjectURL(state.recordings[pageIdx]);
-  audio._currentUrl = url;
-  audio.src = url;
-  audio.onended = () => { URL.revokeObjectURL(url); audio._currentUrl = null; };
-  const p = audio.play();
+  sharedAudio._currentUrl = url;
+  sharedAudio.src = url;
+  sharedAudio.onended = () => { URL.revokeObjectURL(url); sharedAudio._currentUrl = null; };
+  sharedAudio.currentTime = 0;
+  const p = sharedAudio.play();
   if (p && p.catch) p.catch(() => {});
 }
 
@@ -1385,22 +1404,23 @@ function playPageAudio(pageIdx) {
   const blob = state.recordings[pageIdx];
   if (!blob) { stopPlayAll(); return; }
 
-  const audio = getSharedAudio();
-  if (audio._currentUrl) URL.revokeObjectURL(audio._currentUrl);
+  initSharedAudio();
+  if (sharedAudio._currentUrl) URL.revokeObjectURL(sharedAudio._currentUrl);
   const url = URL.createObjectURL(blob);
-  audio._currentUrl = url;
-  audio.src = url;
-  playAllAudio = audio;
-  audio.onended = () => {
+  sharedAudio._currentUrl = url;
+  sharedAudio.src = url;
+  sharedAudio.currentTime = 0;
+  playAllAudio = sharedAudio;
+  sharedAudio.onended = () => {
     URL.revokeObjectURL(url);
-    audio._currentUrl = null;
+    sharedAudio._currentUrl = null;
     if (playingAll && pageIdx + 1 < state.recordings.length) {
       setTimeout(() => playPageAudio(pageIdx + 1), 800);
     } else {
       stopPlayAll();
     }
   };
-  const p = audio.play();
+  const p = sharedAudio.play();
   if (p && p.catch) p.catch(() => {});
 }
 
