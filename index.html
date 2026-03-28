@@ -1085,14 +1085,19 @@ function buildStory() {
   // French article contractions
   function contractFr(text) {
     return text
+      .replace(/à le /g, 'au ')
       .replace(/à Le /g, 'au ')
+      .replace(/À le /g, 'Au ')
       .replace(/À Le /g, 'Au ')
+      .replace(/de le /g, 'du ')
       .replace(/de Le /g, 'du ')
+      .replace(/De le /g, 'Du ')
       .replace(/De Le /g, 'Du ')
+      .replace(/à les /g, 'aux ')
       .replace(/à Les /g, 'aux ')
-      .replace(/À Les /g, 'Aux ')
-      .replace(/de Les /g, 'des ')
-      .replace(/De Les /g, 'Des ');
+      .replace(/À les /g, 'Aux ')
+      .replace(/de les /g, 'des ')
+      .replace(/de Les /g, 'des ');
   }
 
   // Lowercase first letter for in-text use (keeps "L'" as-is)
